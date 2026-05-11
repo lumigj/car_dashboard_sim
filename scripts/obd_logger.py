@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 
 import argparse
+import csv
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 import obd
 
+
+logging = True
+log_path = "logs/obd_log.csv"
 
 DASHBOARD_COMMANDS = [
     "RPM",
@@ -83,15 +88,35 @@ def main():
     print("Connected")
     print("Reading %d commands every %.1f seconds" % (len(commands), args.interval))
 
+    log_file = None
+    writer = None
+    if logging:
+        Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+        log_file = open(log_path, "a", newline="", encoding="utf-8")
+        writer = csv.writer(log_file)
+        writer.writerow(["timestamp_utc"] + [cmd.name for cmd in commands])
+        print("Logging to %s" % log_path)
+
     try:
         while True:
-            print("\n%s" % utc_now())
-            for name, value in read_values(connection, commands).items():
-                print("%s: %s" % (name, value))
+            timestamp = utc_now()
+            values = read_values(connection, commands)
+
+            if logging:
+                writer.writerow([timestamp] + [values[cmd.name] for cmd in commands])
+                log_file.flush()
+                print("logged %s" % timestamp)
+            else:
+                print("\n%s" % timestamp)
+                for name, value in values.items():
+                    print("%s: %s" % (name, value))
+
             time.sleep(args.interval)
     except KeyboardInterrupt:
         print("\nStopped")
     finally:
+        if log_file:
+            log_file.close()
         connection.close()
 
     return 0
