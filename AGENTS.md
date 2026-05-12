@@ -9,6 +9,11 @@
 - Do not print messages about missing packages or how to install them unless the user explicitly asks for that behavior.
 - Assume the developer will manage local environment and dependencies.
 - Prefer failing normally over adding defensive setup guidance around imports.
+- Treat user-authored changes as intentional. If code differs from a previous AI edit, do not change it back unless the user explicitly asks for that reversal.
+
+## Review guidelines
+
+- Don't log PII.
 
 ## Scope
 
