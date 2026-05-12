@@ -64,17 +64,6 @@ class ObdWindow(QWidget):
         event.accept()
 
 
-def show_on_hdmi(app, window):
-    screen = app.primaryScreen()
-    for item in app.screens():
-        if "HDMI" in item.name().upper():
-            screen = item
-            break
-
-    window.setGeometry(screen.geometry())
-    window.showFullScreen()
-
-
 def main():
     args = parse_args()
     app = QApplication(sys.argv)
@@ -90,7 +79,7 @@ def main():
         commands = get_commands(connection, DASHBOARD_COMMANDS)
 
     window = ObdWindow(connection, commands, args.interval)
-    show_on_hdmi(app, window)
+    window.show()
     return app.exec_()
 
 
