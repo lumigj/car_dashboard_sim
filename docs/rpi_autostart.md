@@ -7,7 +7,7 @@ Use this for the HDMI screen production setup.
 In `scripts/obd_interface.py`, set:
 
 ```python
-mock = False
+is_mock = False
 ```
 
 Optional fullscreen:
@@ -49,8 +49,8 @@ Put this in the file:
 [Desktop Entry]
 Type=Application
 Name=Car Dashboard
-Exec=/home/lumi/car_dashboard_sim/.venv/bin/python /home/lumi/car_dashboard_sim/scripts/obd_interface.py --port /dev/ttyUSB0
-WorkingDirectory=/home/lumi/car_dashboard_sim
+Exec=/home/lumi/CarDash/.venv/bin/python /home/lumi/CarDash/scripts/obd_interface.py --port /dev/ttyUSB0
+WorkingDirectory=/home/lumi/CarDash
 Terminal=false
 X-GNOME-Autostart-enabled=true
 ```
@@ -72,7 +72,7 @@ For this project, use VNC mirror mode. If you open a terminal in VNC and it also
 Run it manually first:
 
 ```bash
-cd /home/lumi/car_dashboard_sim
+cd /home/lumi/CarDash
 .venv/bin/python scripts/obd_interface.py --port /dev/ttyUSB0
 ```
 
@@ -80,5 +80,5 @@ Check that:
 
 - HDMI screen shows the Pi desktop
 - ELM327 is `/dev/ttyUSB0`
-- `mock = False` only after real OBD is ready
+- `is_mock = False` only after real OBD is ready
 - `.venv` has `obd` and `PyQt5` installed
