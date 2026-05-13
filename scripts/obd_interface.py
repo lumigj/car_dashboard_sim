@@ -210,7 +210,10 @@ class ObdWindow(QWidget):
         self.labels = {}
         for name in DASHBOARD_COMMANDS:
             label = QLabel("%s: -" % name)
-            label.setStyleSheet("font-size: 32px;")
+            if name in FAST_COMMANDS:
+                label.setStyleSheet("font-size: 54px; font-weight: bold;")
+            else:
+                label.setStyleSheet("font-size: 26px;")
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(label)
             self.labels[name] = label
