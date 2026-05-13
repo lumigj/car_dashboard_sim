@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+from collections import deque
 import sys
 import threading
 import time
@@ -24,16 +25,20 @@ FAST_COMMANDS = [
 ]
 
 SLOW_COMMANDS = [
-    "COOLANT_TEMP",
     "THROTTLE_POS",
     "ENGINE_LOAD",
+    "COOLANT_TEMP",
     "INTAKE_TEMP",
 ]
 
 UI_REFRESH_MS = 100
-FAST_INTERVAL_S = 0.2
-SLOW_INTERVAL_S = 1.0
 RETRY_INTERVAL_S = 10.0
+SLOW_COMMAND_INTERVALS = {
+    "THROTTLE_POS": 0.25,
+    "ENGINE_LOAD": 0.25,
+    "COOLANT_TEMP": 10.0,
+    "INTAKE_TEMP": 10.0,
+}
 
 MOCK_VALUES = {
     "RPM": "1805 revolutions_per_minute",
@@ -65,8 +70,12 @@ class QueryThread(QThread):
         self.port = port
         self.connection = None
         self.commands = {}
-        self.fast_interval = FAST_INTERVAL_S
-        self.slow_interval = SLOW_INTERVAL_S
+        self.next_slow_polls = {
+            name: 0.0
+            for name in SLOW_COMMANDS
+        }
+        self.pending_slow_commands = deque()
+        self.pending_slow_command_names = set()
         self.running = True
 
     def run(self):
@@ -90,29 +99,37 @@ class QueryThread(QThread):
             self.msleep(100)
 
     def poll_loop(self):
-        next_fast_poll = 0
-        next_slow_poll = 0
-
         while self.running:
             now = time.monotonic()
-            did_poll = False
 
-            if now >= next_fast_poll:
-                if not self.poll(FAST_COMMANDS):
-                    return
-                next_fast_poll = now + self.fast_interval
-                did_poll = True
+            if not self.poll(FAST_COMMANDS):
+                return
 
-            if now >= next_slow_poll:
-                if not self.poll(SLOW_COMMANDS):
-                    return
-                next_slow_poll = now + self.slow_interval
-                did_poll = True
+            self.queue_due_slow_commands(now)
+            if not self.poll_next_slow_command():
+                return
 
-            if not did_poll:
-                next_poll = min(next_fast_poll, next_slow_poll)
-                sleep_ms = max(10, min(50, int((next_poll - now) * 1000)))
-                self.msleep(sleep_ms)
+            self.msleep(1)
+
+    def queue_due_slow_commands(self, now):
+        for name in SLOW_COMMANDS:
+            if name in self.pending_slow_command_names:
+                continue
+            if now >= self.next_slow_polls[name]:
+                self.pending_slow_commands.append(name)
+                self.pending_slow_command_names.add(name)
+
+    def poll_next_slow_command(self):
+        if not self.pending_slow_commands:
+            return True
+
+        name = self.pending_slow_commands.popleft()
+        self.pending_slow_command_names.remove(name)
+        if not self.poll([name]):
+            return False
+
+        self.next_slow_polls[name] = time.monotonic() + SLOW_COMMAND_INTERVALS[name]
+        return True
 
     def stop(self):
         self.running = False
@@ -168,6 +185,8 @@ class QueryThread(QThread):
             self.connection.close()
         self.connection = None
         self.commands = {}
+        self.pending_slow_commands.clear()
+        self.pending_slow_command_names.clear()
 
     def poll(self, names):
         if is_mock:

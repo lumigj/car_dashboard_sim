@@ -1,7 +1,3 @@
-# OBD Logger
-
-Minimal Raspberry Pi logger for USB ELM327.
-
 ## Install
 
 ```bash

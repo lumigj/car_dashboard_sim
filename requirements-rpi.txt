@@ -1,2 +1,2 @@
 obd==0.7.3
-PyQt5
+#PyQt5 #this one no need already. rpi package mgmt issue lol
