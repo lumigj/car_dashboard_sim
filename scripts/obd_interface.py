@@ -8,9 +8,17 @@ import time
 
 import obd
 from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
-from PyQt5.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import (
+    QApplication,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
+)
 
-from obd_logger import DASHBOARD_COMMANDS, connect, get_commands, simple_value
+from obd_logger import connect, get_commands, simple_value
 
 
 is_mock = False
@@ -22,31 +30,45 @@ DEFAULT_PORTS = [
 FAST_COMMANDS = [
     "RPM",
     "SPEED",
-]
+    "TIMING_ADVANCE",
 
-SLOW_COMMANDS = [
-    "THROTTLE_POS",
-    "ENGINE_LOAD",
-    "COOLANT_TEMP",
-    "INTAKE_TEMP",
 ]
 
 UI_REFRESH_MS = 100
 RETRY_INTERVAL_S = 10.0
-SLOW_COMMAND_INTERVALS = {
-    "THROTTLE_POS": 0.25,
-    "ENGINE_LOAD": 0.25,
+SLOW_COMMANDS = {
+    # "THROTTLE_POS": 0.3,
+    # "ENGINE_LOAD": 0.3,
     "COOLANT_TEMP": 10.0,
     "INTAKE_TEMP": 10.0,
+    # "INTAKE_PRESSURE": 1.0,
+    "STATUS": 10.0,
 }
+
+ALL_COMMANDS = FAST_COMMANDS + list(SLOW_COMMANDS)
+PRIMARY_COMMANDS = [
+    "SPEED",
+    "RPM",
+]
+SECONDARY_COMMANDS = [
+    "TIMING_ADVANCE",
+    "THROTTLE_POS",
+]
+PRIMARY_COLUMNS = [
+    "RPM",
+    "SPEED",
+]
 
 MOCK_VALUES = {
     "RPM": "1805 revolutions_per_minute",
     "SPEED": "40 kilometer_per_hour",
+    "TIMING_ADVANCE": "2.0 degree",
     "COOLANT_TEMP": "89 degree_Celsius",
-    "THROTTLE_POS": "55 percent",
-    "ENGINE_LOAD": "38 percent",
+    # "THROTTLE_POS": "55 percent",
+    # "ENGINE_LOAD": "38 percent",
     "INTAKE_TEMP": "70 degree_Celsius",
+    # "INTAKE_PRESSURE": "48 kilopascal",
+    "STATUS": "MIL=False DTC=0 ignition=spark",
 }
 
 
@@ -58,6 +80,25 @@ def parse_args():
     if args.mock and args.port:
         parser.error("--mock cannot be used with --port")
     return args
+
+
+def compact_value(name, value):
+    text = str(value)
+    if name in PRIMARY_COMMANDS:
+        return text.split(" ", 1)[0].split(".", 1)[0]
+
+    return (
+        text.replace(" revolutions_per_minute", " rpm")
+        .replace(" kilometer_per_hour", " km/h")
+        .replace(" degree_Celsius", " C")
+        .replace(" kilopascal", " kPa")
+        .replace(" percent", "%")
+        .replace(" degree", " deg")
+    )
+
+
+def display_name(name):
+    return name.replace("_", " ")
 
 
 class QueryThread(QThread):
@@ -128,7 +169,7 @@ class QueryThread(QThread):
         if not self.poll([name]):
             return False
 
-        self.next_slow_polls[name] = time.monotonic() + SLOW_COMMAND_INTERVALS[name]
+        self.next_slow_polls[name] = time.monotonic() + SLOW_COMMANDS[name]
         return True
 
     def stop(self):
@@ -151,7 +192,7 @@ class QueryThread(QThread):
                 errors.append(str(error))
 
         self.close_connection()
-        self.values_changed.emit({name: "-" for name in DASHBOARD_COMMANDS})
+        self.values_changed.emit({name: "-" for name in ALL_COMMANDS})
         self.status_changed.emit(
             "CANNOT CONNECT OBD - RETRY IN %dS" % int(RETRY_INTERVAL_S)
         )
@@ -166,12 +207,12 @@ class QueryThread(QThread):
 
         self.commands = {
             cmd.name: cmd
-            for cmd in get_commands(self.connection, FAST_COMMANDS + SLOW_COMMANDS)
+            for cmd in get_commands(self.connection, ALL_COMMANDS)
         }
         if not self.commands:
             raise RuntimeError("%s: no dashboard OBD commands supported" % port)
 
-        for name in FAST_COMMANDS + SLOW_COMMANDS:
+        for name in ALL_COMMANDS:
             cmd = self.commands.get(name)
             if cmd:
                 response = self.connection.query(cmd)
@@ -200,7 +241,7 @@ class QueryThread(QThread):
                         values[name] = simple_value(self.connection.query(cmd))
             except Exception as error:
                 self.close_connection()
-                self.values_changed.emit({name: "-" for name in DASHBOARD_COMMANDS})
+                self.values_changed.emit({name: "-" for name in ALL_COMMANDS})
                 self.status_changed.emit("OBD LOST - RETRY IN 10S")
                 print(error)
                 return False
@@ -214,28 +255,38 @@ class ObdWindow(QWidget):
     def __init__(self, query_thread):
         super().__init__()
         self.query_thread = query_thread
-        self.latest_values = {name: "-" for name in DASHBOARD_COMMANDS}
+        self.latest_values = {name: "-" for name in ALL_COMMANDS}
         self.status = "STARTING"
 
         self.setWindowTitle("OBD Dashboard")
-        self.setStyleSheet("background: black; color: white;")
+        self.resize(800, 480)
+        self.setStyleSheet("background: #05080e; color: white;")
 
         layout = QVBoxLayout()
+        layout.setContentsMargins(18, 14, 18, 18)
+        layout.setSpacing(12)
+
         self.status_label = QLabel(self.status)
-        self.status_label.setStyleSheet("font-size: 22px; color: #ff5555;")
+        self.status_label.setStyleSheet("font-size: 18px; color: #ff6b6b;")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
 
         self.labels = {}
-        for name in DASHBOARD_COMMANDS:
-            label = QLabel("%s: -" % name)
-            if name in FAST_COMMANDS:
-                label.setStyleSheet("font-size: 54px; font-weight: bold;")
-            else:
-                label.setStyleSheet("font-size: 26px;")
-            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(label)
-            self.labels[name] = label
+
+        primary_layout = QHBoxLayout()
+        primary_layout.setSpacing(14)
+        for name in PRIMARY_COLUMNS:
+            primary_layout.addWidget(self.make_primary_panel(name))
+        layout.addLayout(primary_layout, 3)
+
+        data_grid = QGridLayout()
+        data_grid.setHorizontalSpacing(10)
+        data_grid.setVerticalSpacing(10)
+        bottom_commands = [name for name in ALL_COMMANDS if name not in PRIMARY_COLUMNS]
+        for index, name in enumerate(bottom_commands):
+            data_grid.addWidget(self.make_data_panel(name), index // 3, index % 3)
+        layout.addLayout(data_grid, 2)
+
         self.setLayout(layout)
 
         self.query_thread.values_changed.connect(self.save_latest_values)
@@ -248,6 +299,63 @@ class ObdWindow(QWidget):
         self.ui_timer.start(UI_REFRESH_MS)
         self.update_values()
 
+    def make_primary_panel(self, name):
+        frame = QFrame()
+        frame.setStyleSheet(
+            "QFrame {"
+            "background: #101826;"
+            "border: 2px solid #26384d;"
+            "border-radius: 12px;"
+            "}"
+        )
+        layout = QVBoxLayout()
+        layout.setContentsMargins(18, 14, 18, 14)
+
+        title = QLabel(display_name(name))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 24px; color: #8fb3d9; font-weight: bold; border: 0;")
+        layout.addWidget(title)
+
+        value = QLabel("-")
+        value.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        value.setStyleSheet("font-size: 92px; color: #f8fafc; font-weight: bold; border: 0;")
+        layout.addWidget(value, 1)
+
+        frame.setLayout(layout)
+        self.labels[name] = value
+        return frame
+
+    def make_data_panel(self, name):
+        frame = QFrame()
+        frame.setStyleSheet(
+            "QFrame {"
+            "background: #0b1220;"
+            "border: 1px solid #223047;"
+            "border-radius: 8px;"
+            "}"
+        )
+        layout = QVBoxLayout()
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(4)
+
+        title = QLabel(display_name(name))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 15px; color: #94a3b8; font-weight: bold; border: 0;")
+        layout.addWidget(title)
+
+        value = QLabel("-")
+        value.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        if name in SECONDARY_COMMANDS:
+            value.setStyleSheet("font-size: 28px; color: #e2e8f0; font-weight: bold; border: 0;")
+        else:
+            value.setStyleSheet("font-size: 20px; color: #e2e8f0; border: 0;")
+        value.setWordWrap(True)
+        layout.addWidget(value, 1)
+
+        frame.setLayout(layout)
+        self.labels[name] = value
+        return frame
+
     def save_latest_values(self, values):
         self.latest_values.update(values)
 
@@ -256,8 +364,8 @@ class ObdWindow(QWidget):
 
     def update_values(self):
         self.status_label.setText(self.status)
-        for name in DASHBOARD_COMMANDS:
-            self.labels[name].setText("%s: %s" % (name, self.latest_values[name]))
+        for name in ALL_COMMANDS:
+            self.labels[name].setText(compact_value(name, self.latest_values[name]))
 
     def closeEvent(self, event):
         self.query_thread.stop()
@@ -277,7 +385,10 @@ def main():
 
     query_thread = QueryThread(args.port)
     window = ObdWindow(query_thread)
-    window.show()
+    if is_mock:
+        window.show()
+    else:
+        window.showFullScreen()
     return app.exec_()
 
 
