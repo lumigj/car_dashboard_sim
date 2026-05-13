@@ -7,7 +7,7 @@ import time
 
 import obd
 from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
-from PyQt5.QtWidgets import QApplication, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
 
 from obd_logger import DASHBOARD_COMMANDS, connect, get_commands, simple_value
 
@@ -33,6 +33,7 @@ SLOW_COMMANDS = [
 UI_REFRESH_MS = 100
 FAST_INTERVAL_S = 0.2
 SLOW_INTERVAL_S = 1.0
+RETRY_INTERVAL_S = 10.0
 
 MOCK_VALUES = {
     "RPM": "1805 revolutions_per_minute",
@@ -54,52 +55,16 @@ def parse_args():
     return args
 
 
-def open_live_connection(port):
-    connection = connect(port)
-    if connection.status() == obd.OBDStatus.NOT_CONNECTED:
-        connection.close()
-        raise RuntimeError("%s: could not connect to ELM327" % port)
-
-    commands = {
-        cmd.name: cmd
-        for cmd in get_commands(connection, FAST_COMMANDS + SLOW_COMMANDS)
-    }
-    if not commands:
-        connection.close()
-        raise RuntimeError("%s: no dashboard OBD commands supported" % port)
-
-    for name in FAST_COMMANDS + SLOW_COMMANDS:
-        cmd = commands.get(name)
-        if cmd:
-            response = connection.query(cmd)
-            if not response.is_null():
-                return connection, commands
-
-    connection.close()
-    raise RuntimeError("%s: connected but no dashboard values returned" % port)
-
-
-def find_live_connection(port):
-    ports = [port] if port else DEFAULT_PORTS
-    errors = []
-
-    for candidate in ports:
-        try:
-            return open_live_connection(candidate)
-        except Exception as error:
-            errors.append(str(error))
-
-    raise RuntimeError("\n".join(errors))
-
-
 class QueryThread(QThread):
     values_changed = pyqtSignal(dict)
+    status_changed = pyqtSignal(str)
 
-    def __init__(self, connection, commands):
+    def __init__(self, port):
         super().__init__()
         self.setObjectName("query thread")
-        self.connection = connection
-        self.commands = commands
+        self.port = port
+        self.connection = None
+        self.commands = {}
         self.fast_interval = FAST_INTERVAL_S
         self.slow_interval = SLOW_INTERVAL_S
         self.running = True
@@ -107,6 +72,24 @@ class QueryThread(QThread):
     def run(self):
         threading.current_thread().name = "query thread"
 
+        if is_mock:
+            self.status_changed.emit("MOCK DATA")
+            self.poll_loop()
+            return
+
+        retry_at = 0
+        while self.running:
+            now = time.monotonic()
+            if now >= retry_at:
+                if self.connect_live():
+                    self.poll_loop()
+                retry_at = time.monotonic() + RETRY_INTERVAL_S
+            else:
+                remaining = int(retry_at - now) + 1
+                self.status_changed.emit("CANNOT CONNECT OBD - RETRY IN %dS" % remaining)
+            self.msleep(100)
+
+    def poll_loop(self):
         next_fast_poll = 0
         next_slow_poll = 0
 
@@ -115,12 +98,14 @@ class QueryThread(QThread):
             did_poll = False
 
             if now >= next_fast_poll:
-                self.poll(FAST_COMMANDS)
+                if not self.poll(FAST_COMMANDS):
+                    return
                 next_fast_poll = now + self.fast_interval
                 did_poll = True
 
             if now >= next_slow_poll:
-                self.poll(SLOW_COMMANDS)
+                if not self.poll(SLOW_COMMANDS):
+                    return
                 next_slow_poll = now + self.slow_interval
                 did_poll = True
 
@@ -131,32 +116,97 @@ class QueryThread(QThread):
 
     def stop(self):
         self.running = False
+        self.close_connection()
+
+    def connect_live(self):
+        ports = [self.port] if self.port else DEFAULT_PORTS
+        errors = []
+
+        self.status_changed.emit("CONNECTING OBD")
+        for port in ports:
+            if not self.running:
+                return False
+            try:
+                self.connect_port(port)
+                self.status_changed.emit("LIVE %s" % port)
+                return True
+            except Exception as error:
+                errors.append(str(error))
+
+        self.close_connection()
+        self.values_changed.emit({name: "-" for name in DASHBOARD_COMMANDS})
+        self.status_changed.emit(
+            "CANNOT CONNECT OBD - RETRY IN %dS" % int(RETRY_INTERVAL_S)
+        )
+        print("\n".join(errors))
+        return False
+
+    def connect_port(self, port):
+        self.close_connection()
+        self.connection = connect(port)
+        if self.connection.status() == obd.OBDStatus.NOT_CONNECTED:
+            raise RuntimeError("%s: could not connect to ELM327" % port)
+
+        self.commands = {
+            cmd.name: cmd
+            for cmd in get_commands(self.connection, FAST_COMMANDS + SLOW_COMMANDS)
+        }
+        if not self.commands:
+            raise RuntimeError("%s: no dashboard OBD commands supported" % port)
+
+        for name in FAST_COMMANDS + SLOW_COMMANDS:
+            cmd = self.commands.get(name)
+            if cmd:
+                response = self.connection.query(cmd)
+                if not response.is_null():
+                    return
+
+        raise RuntimeError("%s: connected but no dashboard values returned" % port)
+
+    def close_connection(self):
+        if self.connection:
+            self.connection.close()
+        self.connection = None
+        self.commands = {}
 
     def poll(self, names):
         if is_mock:
             values = {name: MOCK_VALUES[name] for name in names}
         else:
             values = {}
-            for name in names:
-                cmd = self.commands.get(name)
-                if cmd:
-                    values[name] = simple_value(self.connection.query(cmd))
+            try:
+                for name in names:
+                    cmd = self.commands.get(name)
+                    if cmd:
+                        values[name] = simple_value(self.connection.query(cmd))
+            except Exception as error:
+                self.close_connection()
+                self.values_changed.emit({name: "-" for name in DASHBOARD_COMMANDS})
+                self.status_changed.emit("OBD LOST - RETRY IN 10S")
+                print(error)
+                return False
 
         if values:
             self.values_changed.emit(values)
+        return True
 
 
 class ObdWindow(QWidget):
-    def __init__(self, connection, query_thread):
+    def __init__(self, query_thread):
         super().__init__()
-        self.connection = connection
         self.query_thread = query_thread
         self.latest_values = {name: "-" for name in DASHBOARD_COMMANDS}
+        self.status = "STARTING"
 
         self.setWindowTitle("OBD Dashboard")
         self.setStyleSheet("background: black; color: white;")
 
         layout = QVBoxLayout()
+        self.status_label = QLabel(self.status)
+        self.status_label.setStyleSheet("font-size: 22px; color: #ff5555;")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.status_label)
+
         self.labels = {}
         for name in DASHBOARD_COMMANDS:
             label = QLabel("%s: -" % name)
@@ -167,6 +217,7 @@ class ObdWindow(QWidget):
         self.setLayout(layout)
 
         self.query_thread.values_changed.connect(self.save_latest_values)
+        self.query_thread.status_changed.connect(self.save_status)
         self.query_thread.start()
 
         self.ui_timer = QTimer(self)
@@ -178,14 +229,16 @@ class ObdWindow(QWidget):
     def save_latest_values(self, values):
         self.latest_values.update(values)
 
+    def save_status(self, status):
+        self.status = status
+
     def update_values(self):
+        self.status_label.setText(self.status)
         for name in DASHBOARD_COMMANDS:
             self.labels[name].setText("%s: %s" % (name, self.latest_values[name]))
 
     def closeEvent(self, event):
         self.query_thread.stop()
-        if self.connection:
-            self.connection.close()
         self.query_thread.wait()
         event.accept()
 
@@ -200,21 +253,8 @@ def main():
     threading.current_thread().name = "ui thread"
     QThread.currentThread().setObjectName("ui thread")
 
-    connection = None
-    commands = {}
-
-    if not is_mock:
-        try:
-            connection, commands = find_live_connection(args.port)
-        except RuntimeError as error:
-            QMessageBox.critical(None, "OBD Connection Error", str(error))
-            return 1
-
-    query_thread = QueryThread(
-        connection,
-        commands,
-    )
-    window = ObdWindow(connection, query_thread)
+    query_thread = QueryThread(args.port)
+    window = ObdWindow(query_thread)
     window.show()
     return app.exec_()
 

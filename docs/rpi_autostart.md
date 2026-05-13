@@ -9,6 +9,10 @@ The app starts in live OBD mode by default. If no port is given, it tries:
 - `/dev/ttyUSB0`
 - `/dev/ttyUSB1`
 
+If neither port connects, the UI stays open, shows a retry countdown, and retries every 10 seconds.
+
+If `--port` is given, it retries only that port.
+
 Optional fullscreen:
 
 ```python
