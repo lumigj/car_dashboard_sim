@@ -7,12 +7,16 @@ import time
 
 import obd
 from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
-from PyQt5.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QApplication, QLabel, QMessageBox, QVBoxLayout, QWidget
 
 from obd_logger import DASHBOARD_COMMANDS, connect, get_commands, simple_value
 
 
-is_mock = True
+is_mock = False
+DEFAULT_PORTS = [
+    "/dev/ttyUSB0",
+    "/dev/ttyUSB1",
+]
 
 FAST_COMMANDS = [
     "RPM",
@@ -42,8 +46,50 @@ MOCK_VALUES = {
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--mock", action="store_true", help="Use mock dashboard values")
     parser.add_argument("--port", help="ELM327 port, for example /dev/ttyUSB0")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.mock and args.port:
+        parser.error("--mock cannot be used with --port")
+    return args
+
+
+def open_live_connection(port):
+    connection = connect(port)
+    if connection.status() == obd.OBDStatus.NOT_CONNECTED:
+        connection.close()
+        raise RuntimeError("%s: could not connect to ELM327" % port)
+
+    commands = {
+        cmd.name: cmd
+        for cmd in get_commands(connection, FAST_COMMANDS + SLOW_COMMANDS)
+    }
+    if not commands:
+        connection.close()
+        raise RuntimeError("%s: no dashboard OBD commands supported" % port)
+
+    for name in FAST_COMMANDS + SLOW_COMMANDS:
+        cmd = commands.get(name)
+        if cmd:
+            response = connection.query(cmd)
+            if not response.is_null():
+                return connection, commands
+
+    connection.close()
+    raise RuntimeError("%s: connected but no dashboard values returned" % port)
+
+
+def find_live_connection(port):
+    ports = [port] if port else DEFAULT_PORTS
+    errors = []
+
+    for candidate in ports:
+        try:
+            return open_live_connection(candidate)
+        except Exception as error:
+            errors.append(str(error))
+
+    raise RuntimeError("\n".join(errors))
 
 
 class QueryThread(QThread):
@@ -115,7 +161,7 @@ class ObdWindow(QWidget):
         for name in DASHBOARD_COMMANDS:
             label = QLabel("%s: -" % name)
             label.setStyleSheet("font-size: 32px;")
-            label.setAlignment(Qt.AlignCenter)
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(label)
             self.labels[name] = label
         self.setLayout(layout)
@@ -145,7 +191,11 @@ class ObdWindow(QWidget):
 
 
 def main():
+    global is_mock
+
     args = parse_args()
+    is_mock = args.mock
+
     app = QApplication(sys.argv)
     threading.current_thread().name = "ui thread"
     QThread.currentThread().setObjectName("ui thread")
@@ -154,14 +204,11 @@ def main():
     commands = {}
 
     if not is_mock:
-        connection = connect(args.port)
-        if connection.status() == obd.OBDStatus.NOT_CONNECTED:
-            print("Could not connect to ELM327")
+        try:
+            connection, commands = find_live_connection(args.port)
+        except RuntimeError as error:
+            QMessageBox.critical(None, "OBD Connection Error", str(error))
             return 1
-        commands = {
-            cmd.name: cmd
-            for cmd in get_commands(connection, FAST_COMMANDS + SLOW_COMMANDS)
-        }
 
     query_thread = QueryThread(
         connection,

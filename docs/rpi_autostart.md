@@ -4,11 +4,10 @@ Use this for the HDMI screen production setup.
 
 ## Before Autostart
 
-In `scripts/obd_interface.py`, set:
+The app starts in live OBD mode by default. If no port is given, it tries:
 
-```python
-is_mock = False
-```
+- `/dev/ttyUSB0`
+- `/dev/ttyUSB1`
 
 Optional fullscreen:
 
@@ -49,36 +48,14 @@ Put this in the file:
 [Desktop Entry]
 Type=Application
 Name=Car Dashboard
-Exec=/home/lumi/CarDash/.venv/bin/python /home/lumi/CarDash/scripts/obd_interface.py --port /dev/ttyUSB0
+Exec=/home/lumi/CarDash/.venv/bin/python /home/lumi/CarDash/scripts/obd_interface.py
 WorkingDirectory=/home/lumi/CarDash
 Terminal=false
 X-GNOME-Autostart-enabled=true
 ```
 
-Reboot:
+## To run without the car attached:
 
 ```bash
-sudo reboot
+.venv/bin/python scripts/obd_interface.py --mock
 ```
-
-## VNC Note
-
-VNC can either mirror the HDMI desktop or create a separate virtual desktop.
-
-For this project, use VNC mirror mode. If you open a terminal in VNC and it also appears on the HDMI screen, it is mirrored.
-
-## If The App Does Not Start
-
-Run it manually first:
-
-```bash
-cd /home/lumi/CarDash
-.venv/bin/python scripts/obd_interface.py --port /dev/ttyUSB0
-```
-
-Check that:
-
-- HDMI screen shows the Pi desktop
-- ELM327 is `/dev/ttyUSB0`
-- `is_mock = False` only after real OBD is ready
-- `.venv` has `obd` and `PyQt5` installed
