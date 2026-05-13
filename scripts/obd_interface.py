@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from pint.delegates.formatter import full
 
 from obd_logger import connect, get_commands, simple_value
 
@@ -34,15 +35,17 @@ FAST_COMMANDS = [
 
 ]
 
-UI_REFRESH_MS = 200
+UI_REFRESH_MS = 125
 RETRY_INTERVAL_S = 10.0
 SLOW_COMMANDS = {
     "THROTTLE_POS": 0.3,
     "ENGINE_LOAD": 0.3,
-    "COOLANT_TEMP": 10.0,
-    "INTAKE_TEMP": 10.0,
     "INTAKE_PRESSURE": 0.3,
-    "STATUS": 10.0,
+    "INTAKE_TEMP": 15.0,
+    "COOLANT_TEMP": 15.0,
+    "STATUS": 20.0,
+    "SHORT_FUEL_TRIM_1": 0.3,
+    "LONG_FUEL_TRIM_1": 36.0,
 }
 
 ALL_COMMANDS = FAST_COMMANDS + list(SLOW_COMMANDS)
@@ -61,6 +64,8 @@ MOCK_VALUES = {
     "INTAKE_TEMP": "70 degree_Celsius",
     "INTAKE_PRESSURE": "48 kilopascal",
     "STATUS": "MIL=False DTC=0 ignition=spark",
+    "SHORT_FUEL_TRIM_1": "5.46875 percent",
+    "LONG_FUEL_TRIM_1": "9.375 percent",
 }
 
 
@@ -68,6 +73,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mock", action="store_true", help="Use mock dashboard values")
     parser.add_argument("--port", help="ELM327 port, for example /dev/ttyUSB0")
+    parser.add_argument("--mockfull", action="store_true")
     args = parser.parse_args()
     if args.mock and args.port:
         parser.error("--mock cannot be used with --port")
@@ -366,7 +372,10 @@ def main():
     global is_mock
 
     args = parse_args()
-    is_mock = args.mock
+    is_mf = args.mockfull
+    is_mock = is_mf
+    if not is_mock:
+        is_mock = args.mock
 
     app = QApplication(sys.argv)
     threading.current_thread().name = "ui thread"
@@ -374,10 +383,14 @@ def main():
 
     query_thread = QueryThread(args.port)
     window = ObdWindow(query_thread)
+
+    if is_mf :
+        window.showFullScreen()
     if is_mock:
         window.show()
     else:
         window.showFullScreen()
+
     return app.exec_()
 
 
