@@ -286,11 +286,11 @@ class _DashBoardContolsDesign(QWidget):
             QSizeF(rpm_bounding_rect.width() * 0.975, rpm_bounding_rect.width() * 0.975).toSize())
         inner_dial.moveCenter(rpm_bounding_rect.center())
         painter.setPen(self.rpm_segment_pen(QColor(66, 245, 66, 190)))
-        self.draw_rpm_arc(painter, inner_dial, 0, 2500)
+        self.draw_rpm_arc(painter, inner_dial, 0, 2000)
         painter.setPen(self.rpm_segment_pen(QColor(224, 210, 13, 210)))
-        self.draw_rpm_arc(painter, inner_dial, 2500, 3500)
+        self.draw_rpm_arc(painter, inner_dial, 2000, 4000)
         painter.setPen(self.rpm_segment_pen(QColorConstants.Svg.red))
-        self.draw_rpm_arc(painter, inner_dial, 3500, self.max_rpm)
+        self.draw_rpm_arc(painter, inner_dial, 4000, self.max_rpm)
 
         # setting number font
         number_font = QFont("Consolas", 0, 0, True)

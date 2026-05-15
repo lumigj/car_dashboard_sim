@@ -12,14 +12,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import obd
-from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
+from PyQt5.QtCore import Qt, QRectF, QThread, QTimer, pyqtSignal
+from PyQt5.QtGui import QColor, QPainter
 from PyQt5.QtWidgets import (
     QApplication,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
-    QProgressBar,
     QVBoxLayout,
     QWidget,
 )
@@ -43,21 +42,21 @@ DEFAULT_PORTS = [
 FAST_COMMANDS = [
     "RPM",
     "SPEED",
-    # "TIMING_ADVANCE",
+    "TIMING_ADVANCE",
 
 ]
 
-UI_REFRESH_MS = 200
+UI_REFRESH_MS = 300
 RETRY_INTERVAL_S = 10.0
 SLOW_COMMANDS = {
-    # "THROTTLE_POS": 0.3,
-    # "ENGINE_LOAD": 0.3,
-    # "INTAKE_PRESSURE": 0.3,
-    # "INTAKE_TEMP": 15.0,
-    # "COOLANT_TEMP": 15.0,
-    # "STATUS": 20.0,
-    # "SHORT_FUEL_TRIM_1": 0.3,
-    # "LONG_FUEL_TRIM_1": 36.0,
+    "THROTTLE_POS": 0.3,
+    "ENGINE_LOAD": 0.3,
+    "INTAKE_PRESSURE": 0.3,
+    "INTAKE_TEMP": 15.0,
+    "COOLANT_TEMP": 15.0,
+    "STATUS": 20.0,
+    "SHORT_FUEL_TRIM_1": 0.3,
+    "LONG_FUEL_TRIM_1": 36.0,
 }
 
 ALL_COMMANDS = FAST_COMMANDS + list(SLOW_COMMANDS)
@@ -65,11 +64,25 @@ PRIMARY_COMMANDS = [
     "SPEED",
     "RPM",
 ]
-RIGHT_SIDE_COMMANDS = [
-    # "THROTTLE_POS",
-    # "ENGINE_LOAD",
-    # "COOLANT_TEMP",
+GAUGE_COMMANDS = [
+    "TIMING_ADVANCE",
+    "THROTTLE_POS",
+    "ENGINE_LOAD",
+    "COOLANT_TEMP",
 ]
+RIGHT_INFO_COMMANDS = [
+    "INTAKE_PRESSURE",
+    "INTAKE_TEMP",
+    "SHORT_FUEL_TRIM_1",
+    "LONG_FUEL_TRIM_1",
+    "STATUS",
+]
+GAUGE_RANGES = {
+    "TIMING_ADVANCE": (-20, 40),
+    "THROTTLE_POS": (0, 100),
+    "ENGINE_LOAD": (0, 100),
+    "COOLANT_TEMP": (40, 120),
+}
 
 MOCK_VALUES = {
     "RPM": "6024 revolutions_per_minute",
@@ -101,6 +114,8 @@ def compact_value(name, value):
     text = str(value)
     if name in PRIMARY_COMMANDS:
         return text.split(" ", 1)[0].split(".", 1)[0]
+    if name == "STATUS" and text != "-":
+        return text.replace("MIL=False", "MIL OFF").replace("MIL=True", "MIL ON").replace(" ignition=", " ")
 
     return (
         text.replace(" revolutions_per_minute", " rpm")
@@ -113,7 +128,17 @@ def compact_value(name, value):
 
 
 def display_name(name):
-    return name.replace("_", " ")
+    names = {
+        "TIMING_ADVANCE": "TIMING",
+        "THROTTLE_POS": "THROTTLE",
+        "ENGINE_LOAD": "LOAD",
+        "INTAKE_PRESSURE": "INTAKE kPa",
+        "INTAKE_TEMP": "INTAKE C",
+        "COOLANT_TEMP": "COOLANT",
+        "SHORT_FUEL_TRIM_1": "ST FUEL",
+        "LONG_FUEL_TRIM_1": "LT FUEL",
+    }
+    return names.get(name, name.replace("_", " "))
 
 
 def numeric_value(value):
@@ -123,8 +148,13 @@ def numeric_value(value):
     return round(float(text.split(" ", 1)[0]))
 
 
-def clamped_numeric_value(value, minimum, maximum):
-    return max(minimum, min(maximum, numeric_value(value)))
+def gauge_value(name, value):
+    if str(value) == "-":
+        return 0
+
+    minimum, maximum = GAUGE_RANGES[name]
+    number = numeric_value(value)
+    return max(minimum, min(maximum, number))
 
 
 def fit_16_9_size(width, height):
@@ -294,116 +324,148 @@ class QueryThread(QThread):
         return True
 
 
-class ProgressMetric(QFrame):
-    def __init__(self, title, scale=1.0):
+class GaugeBar(QWidget):
+    def __init__(self, name, scale):
         super().__init__()
+        self.name = name
+        self.scale = scale
+        self.value = "-"
+        self.setFixedHeight(scaled(14, scale))
+
+    def set_value(self, value):
+        self.value = value
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        rect = QRectF(self.rect()).adjusted(0, 0, -1, -1)
+        radius = scaled(4, self.scale)
+        painter.setPen(QColor("#303030"))
+        painter.setBrush(QColor("#101010"))
+        painter.drawRoundedRect(rect, radius, radius)
+
+        value = gauge_value(self.name, self.value)
+        minimum, maximum = GAUGE_RANGES[self.name]
+
+        if self.name == "TIMING_ADVANCE":
+            center = rect.left() + rect.width() / 2
+            half_width = rect.width() / 2
+            if value < 0:
+                width = abs(value) / abs(minimum) * half_width
+                fill = QRectF(center - width, rect.top(), width, rect.height())
+                color = QColor("#ef4444")
+            else:
+                width = value / maximum * half_width
+                fill = QRectF(center, rect.top(), width, rect.height())
+                color = QColor("#22c55e")
+
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(color)
+            painter.drawRoundedRect(fill, radius, radius)
+            painter.setPen(QColor("#64748b"))
+            painter.drawLine(round(center), round(rect.top()), round(center), round(rect.bottom()))
+        else:
+            width = (value - minimum) / (maximum - minimum) * rect.width()
+            fill = QRectF(rect.left(), rect.top(), width, rect.height())
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(self.fill_color(value))
+            painter.drawRoundedRect(fill, radius, radius)
+
+    def fill_color(self, value):
+        if self.name != "COOLANT_TEMP":
+            return QColor("#22c55e")
+        if value >= 105:
+            return QColor("#ef4444")
+        if value >= 95:
+            return QColor("#eab308")
+        return QColor("#22c55e")
+
+
+class GaugeMetric(QFrame):
+    def __init__(self, name, scale):
+        super().__init__()
+        self.name = name
+        self.setFixedWidth(scaled(220, scale))
         self.setStyleSheet(
-            "QFrame { background-color: #000000; border: 1px solid #202020; border-radius: 8px; }"
+            "QFrame { background-color: #050505; border: 1px solid #181818; border-radius: 4px; }"
             "QLabel { border: 0; }"
-            "QProgressBar {"
-            "background-color: #111111;"
-            "border: 1px solid #303030;"
-            "border-radius: 5px;"
-            "height: %dpx;"
-            "}"
-            "QProgressBar::chunk { background-color: #38bdf8; border-radius: 5px; }"
-            % scaled(16, scale)
         )
+
         layout = QVBoxLayout()
         layout.setContentsMargins(
-            scaled(8, scale),
-            scaled(6, scale),
-            scaled(8, scale),
-            scaled(6, scale),
+            scaled(5, scale),
+            scaled(3, scale),
+            scaled(5, scale),
+            scaled(3, scale),
         )
-        layout.setSpacing(scaled(4, scale))
+        layout.setSpacing(scaled(3, scale))
 
-        title_label = QLabel(title)
-        title_label.setStyleSheet(
-            "font-size: %dpx; color: #94a3b8; font-weight: bold;"
-            % scaled(15, scale)
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(scaled(4, scale))
+
+        title = QLabel(display_name(name))
+        title.setStyleSheet(
+            "font-size: %dpx; color: #94a3b8; font-weight: bold;" % scaled(12, scale)
         )
-        layout.addWidget(title_label)
+        header.addWidget(title)
 
         self.value_label = QLabel("-")
         self.value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.value_label.setStyleSheet(
-            "font-size: %dpx; color: #e2e8f0; font-weight: bold;"
-            % scaled(24, scale)
+            "font-size: %dpx; color: #e5e7eb; font-weight: bold;" % scaled(14, scale)
         )
-        layout.addWidget(self.value_label)
+        header.addWidget(self.value_label, 1)
+        layout.addLayout(header)
 
-        self.bar = QProgressBar()
-        self.bar.setRange(0, 100)
-        self.bar.setTextVisible(False)
+        self.bar = GaugeBar(name, scale)
         layout.addWidget(self.bar)
-
         self.setLayout(layout)
 
     def set_value(self, value):
-        self.bar.setValue(value)
-        self.value_label.setText("%d%%" % value)
+        self.value_label.setText(compact_value(self.name, value))
+        self.bar.set_value(value)
 
 
-class TemperatureMetric(QFrame):
-    def __init__(self, title, scale=1.0):
+class InfoMetric(QFrame):
+    def __init__(self, name, scale):
         super().__init__()
-        self.minimum_temp = 40
-        self.maximum_temp = 120
-        self.setFixedWidth(scaled(150, scale))
+        self.name = name
+        self.setFixedWidth(scaled(220, scale))
         self.setStyleSheet(
-            "QFrame { background-color: #000000; border: 1px solid #202020; border-radius: 8px; }"
+            "QFrame { background-color: #050505; border: 1px solid #181818; border-radius: 4px; }"
             "QLabel { border: 0; }"
-            "QProgressBar {"
-            "background-color: #111111;"
-            "border: 1px solid #303030;"
-            "border-radius: 7px;"
-            "width: %dpx;"
-            "}"
-            "QProgressBar::chunk { background-color: #ef4444; border-radius: 7px; }"
-            % scaled(18, scale)
         )
-        layout = QVBoxLayout()
+
+        layout = QHBoxLayout()
         layout.setContentsMargins(
             scaled(6, scale),
+            scaled(3, scale),
             scaled(6, scale),
-            scaled(6, scale),
-            scaled(6, scale),
+            scaled(3, scale),
         )
-        layout.setSpacing(scaled(4, scale))
+        layout.setSpacing(scaled(5, scale))
 
-        title_label = QLabel(title)
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet(
-            "font-size: %dpx; color: #94a3b8; font-weight: bold;"
-            % scaled(15, scale)
+        title = QLabel(display_name(name))
+        title.setStyleSheet(
+            "font-size: %dpx; color: #94a3b8; font-weight: bold;" % scaled(11, scale)
         )
-        layout.addWidget(title_label)
-
-        body_layout = QHBoxLayout()
-        body_layout.setContentsMargins(0, 0, 0, 0)
-        body_layout.setSpacing(scaled(4, scale))
-
-        self.bar = QProgressBar()
-        self.bar.setOrientation(Qt.Orientation.Vertical)
-        self.bar.setRange(self.minimum_temp, self.maximum_temp)
-        self.bar.setTextVisible(False)
-        body_layout.addWidget(self.bar, 0, Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
 
         self.value_label = QLabel("-")
+        self.value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.value_label.setWordWrap(True)
         self.value_label.setStyleSheet(
-            "font-size: %dpx; color: #e2e8f0; font-weight: bold;"
-            % scaled(24, scale)
+            "font-size: %dpx; color: #e5e7eb; font-weight: bold;" % scaled(12, scale)
         )
-        self.value_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        body_layout.addWidget(self.value_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.value_label, 1)
 
-        layout.addLayout(body_layout, 1)
         self.setLayout(layout)
 
     def set_value(self, value):
-        self.bar.setValue(value)
-        self.value_label.setText("%d C" % value)
+        self.value_label.setText(compact_value(self.name, value))
 
 
 class ObdWindow(QWidget):
@@ -425,26 +487,27 @@ class ObdWindow(QWidget):
 
         layout = QVBoxLayout()
         layout.setContentsMargins(
-            scaled(8, self.scale),
-            scaled(4, self.scale),
-            scaled(8, self.scale),
             scaled(6, self.scale),
+            scaled(2, self.scale),
+            scaled(6, self.scale),
+            scaled(4, self.scale),
         )
-        layout.setSpacing(scaled(4, self.scale))
+        layout.setSpacing(scaled(3, self.scale))
 
         self.status_label = QLabel(self.status)
         self.status_label.setStyleSheet(
-            "font-size: %dpx; color: #ff6b6b;" % scaled(18, self.scale)
+            "font-size: %dpx; color: #ff6b6b;" % scaled(16, self.scale)
         )
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
 
         self.labels = {}
-        self.progress_metrics = {}
+        self.gauge_metrics = {}
+        self.info_metrics = {}
 
         dashboard_row = QHBoxLayout()
         dashboard_row.setContentsMargins(0, 0, 0, 0)
-        dashboard_row.setSpacing(0)
+        dashboard_row.setSpacing(scaled(6, self.scale))
         self.dashboard_widget = DashBoard(self)
         self.dashboard_widget.setFixedSize(
             self.dashboard_width,
@@ -452,7 +515,20 @@ class ObdWindow(QWidget):
         )
         self.dashboard_widget.setStyleSheet("background-color: %s; border: 0;" % BACKGROUND_COLOR)
         self.dashboard_widget.show_dashboard()
-        dashboard_row.addWidget(self.dashboard_widget, 0, Qt.AlignmentFlag.AlignCenter)
+        dashboard_row.addWidget(self.dashboard_widget, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        right_metrics = QVBoxLayout()
+        right_metrics.setContentsMargins(0, scaled(8, self.scale), 0, 0)
+        right_metrics.setSpacing(scaled(5, self.scale))
+        for name in GAUGE_COMMANDS:
+            self.gauge_metrics[name] = GaugeMetric(name, self.scale)
+            right_metrics.addWidget(self.gauge_metrics[name])
+        for name in RIGHT_INFO_COMMANDS:
+            self.info_metrics[name] = InfoMetric(name, self.scale)
+            right_metrics.addWidget(self.info_metrics[name])
+        right_metrics.addStretch(1)
+        dashboard_row.addLayout(right_metrics)
+        dashboard_row.addStretch(1)
         layout.addLayout(dashboard_row, 1)
 
         self.setLayout(layout)
@@ -467,44 +543,6 @@ class ObdWindow(QWidget):
         self.ui_timer.start(UI_REFRESH_MS)
         self.update_values()
 
-    def make_data_panel(self, name):
-        frame = QFrame()
-        frame.setStyleSheet(
-            "QFrame {"
-            "background-color: %s;"
-            "border: 1px solid #202020;"
-            "border-radius: 8px;"
-            "}" % BACKGROUND_COLOR
-        )
-        layout = QVBoxLayout()
-        layout.setContentsMargins(
-            scaled(6, self.scale),
-            scaled(3, self.scale),
-            scaled(6, self.scale),
-            scaled(3, self.scale),
-        )
-        layout.setSpacing(scaled(2, self.scale))
-
-        title = QLabel(display_name(name))
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet(
-            "font-size: %dpx; color: #94a3b8; font-weight: bold; border: 0;"
-            % scaled(14, self.scale)
-        )
-        layout.addWidget(title)
-
-        value = QLabel("-")
-        value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        value.setStyleSheet(
-            "font-size: %dpx; color: #e2e8f0; border: 0;" % scaled(18, self.scale)
-        )
-        value.setWordWrap(True)
-        layout.addWidget(value, 1)
-
-        frame.setLayout(layout)
-        self.labels[name] = value
-        return frame
-
     def save_latest_values(self, values):
         self.latest_values.update(values)
 
@@ -517,8 +555,10 @@ class ObdWindow(QWidget):
             numeric_value(self.latest_values["SPEED"]),
             numeric_value(self.latest_values["RPM"]),
         )
-        for name in self.labels:
-            self.labels[name].setText(compact_value(name, self.latest_values[name]))
+        for name in self.gauge_metrics:
+            self.gauge_metrics[name].set_value(self.latest_values[name])
+        for name in self.info_metrics:
+            self.info_metrics[name].set_value(self.latest_values[name])
 
     def closeEvent(self, event):
         self.query_thread.stop()
