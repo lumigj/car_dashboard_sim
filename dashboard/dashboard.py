@@ -13,8 +13,6 @@ with basic features contains \n
 Some cool features: \n
     1) Start page with start button and creator info button. Note: you can hide creator info button
        by using hide_creator_button() method in 'TriggerAction' class. \n
-    2) Loading screen launch after start button pressed. Note: you can skip loading screen
-       by using skip_loading_screen() method in 'TriggerAction' class. \n
     3) dashboard popup animation. \n
     4) you can also embed this dashboard with your own application created using PyQt by using
        'DashBoard' class.
@@ -43,8 +41,7 @@ _dash_board = None
 class _DashBoardMain(QWidget):
     """WARNING: This is a private class. do not import this."""
 
-    def __init__(self, parent, size: tuple | list = (1280, 720), hide_creator_button: bool = False,
-                 skip_start_screen: bool = False, skip_loading_screen: bool = False, do_not_move: bool = False):
+    def __init__(self, parent, size: tuple | list = (1280, 720), hide_creator_button: bool = False, do_not_move: bool = False):
         super().__init__()
         # Setting window to no icon, frameless and transparent
         self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
@@ -54,8 +51,6 @@ class _DashBoardMain(QWidget):
 
         self.oldPos = QCursor().pos()
         self.hide_creator_button = hide_creator_button
-        self.skip_start_screen = skip_start_screen
-        self.skip_loading_screen = skip_loading_screen
         self.do_not_move = do_not_move
 
         self.initUI()
@@ -69,17 +64,10 @@ class _DashBoardMain(QWidget):
 
     def initUI(self):
         self.stacked_widget()
-        self.start_screen()
-        self.loding_screen()
         self.dash_board_design()
 
-        if self.skip_start_screen:
-            self.swidget.setCurrentIndex(1)
-            if self.skip_loading_screen:
-                self.swidget.setCurrentIndex(2)
-                self.dash_board_design_widget.start_up_animation()
-            else:
-                self.progress_bar_animation.start()
+        self.swidget.setCurrentIndex(2)
+        self.dash_board_design_widget.start_up_animation()
 
     def stacked_widget(self):
         self.swidget = QStackedWidget(self)
@@ -90,160 +78,10 @@ class _DashBoardMain(QWidget):
         self.swidget.setFixedSize(self.width(), self.height())
         self.swidget.setCurrentIndex(0)
 
-    def start_screen(self):
-        start_up_widget = QWidget()
-        start_up_widget.setFixedSize(self.width(), self.height())
-        self.swidget.addWidget(start_up_widget)
-
-        start_button = QPushButton("Start", start_up_widget)
-        start_button.setFixedSize(self.width() // 5, self.width() // 5)
-        start_button.move(self.rect().center() - start_button.rect().center())
-
-        grad = "qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 {color1}, stop:{value} {color2}, stop: 1.0 {color1});".format(
-            color1=QColor(240, 0, 0).name(), color2=QColor(255, 80, 0).name(), value=0.5)
-        hover_grad = "qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 {color1}, stop:{value} {color2}, stop: 1.0 {color1});".format(
-            color1=QColor(0, 240, 0).name(), color2=QColor(80, 255, 0).name(), value=0.5)
-        start_button_style = """QPushButton {background-color: %s; color: white; border-radius: %spx}
-                                QPushButton::hover {background-color: %s;}""" % (grad, str(self.width() // 10),
-                                                                                 hover_grad)
-        start_button.setStyleSheet(start_button_style)
-
-        start_button_shadow = QGraphicsDropShadowEffect()
-        start_button_shadow.setBlurRadius(15)
-        start_button.setGraphicsEffect(start_button_shadow)
-
-        start_button_font = QFont("Consolas", 0, 0, True)
-        start_button_font.setBold(True)
-        start_button_font.setPixelSize(round(self.width() * 0.05))
-        start_button.setFont(start_button_font)
-
-        start_button.clicked.connect(self.start_button_action)
-
-        creator_info_button = QPushButton("C", start_up_widget)
-        creator_info_button.setContentsMargins(0, 0, 80, 0)
-        creator_info_button.setFixedSize(*map(round, (self.width() * 0.05, self.width() * 0.05)))
-        creator_info_button.move(
-            self.rect().bottomRight() - creator_info_button.rect().bottomRight() - creator_info_button.rect().center())
-
-        creator_info_font = QFont("Arial Black", 0, 0, True)
-        creator_info_font.setBold(True)
-        creator_info_font.setPixelSize(round(self.width() * 0.03))
-        creator_info_button.setFont(creator_info_font)
-
-        creator_info_button_style = """QPushButton {background-color: rgba(0, 0, 0, 0); color: rgb(153, 153, 0); border-radius: %spx;}
-                                QPushButton::hover {color: rgb(255, 255, 0);}""" % str(
-            round(creator_info_button.width() * 0.5))
-        creator_info_button.setStyleSheet(creator_info_button_style)
-        creator_info_button.clicked.connect(self.creator_info_button_action)
-
-        creator_info_label = QLabel(start_up_widget)
-        creator_info_label.setContentsMargins(0, 0, 0, 0)
-        creator_info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        creator_info_label.setFixedSize(*map(round, (self.width() * 0.6, self.height() * 0.1)))
-        creator_info_label.move(
-            self.rect().center() - creator_info_label.rect().center() - QPoint(-round(self.width() * 0.8), round(
-                -self.height() // 2 + creator_info_label.height() * 0.9)))
-
-        grad = "qlineargradient(spread:pad, x1:0.5, y1:0.7, x2:1, y2:0, stop:0 {color1}, stop:{value} {color2}, stop: 1.0 {color2});".format(
-            color1=QColor(255, 153, 51).name(), color2=QColor(77, 77, 0).name(), value=0.5)
-        creator_info_label.setStyleSheet("background-color: %s; color: rgb(204, 255, 255)" % grad)
-
-        creator_info_font.setPixelSize(round(self.width() * 0.015))
-        creator_info_label.setFont(creator_info_font)
-        creator_info_label.setWordWrap(True)
-        creator_info_label.setOpenExternalLinks(True)
-        creator_info_label.setText(
-            '<font color=FloralWhite>Creator info:</font> <br> <font color=Ivory>Name:</font> Prasanna K; <font color=Ivory>GitHub link:</font> <a href="https://github.com/prasanna892"><font color=white>https://github.com/prasanna892.</font></a>')
-
-        creator_info_button.setHidden(self.hide_creator_button)
-
-        self.creator_label_ani = QPropertyAnimation(creator_info_label, b"pos")
-        self.creator_label_ani.setStartValue(creator_info_label.pos())
-        self.creator_label_ani.setEndValue(QPoint(round(self.height() * 0.55), creator_info_label.y()))
-        self.creator_label_ani.setDuration(600)
-        self.creator_label_ani.setDirection(1)
-
     def creator_info_button_action(self):
         self.creator_label_ani.setDirection(not self.creator_label_ani.direction())
         self.creator_label_ani.start()
 
-    def start_button_action(self):
-        if self.skip_loading_screen:
-            self.swidget.setCurrentIndex(2)
-            self.dash_board_design_widget.start_up_animation()
-        else:
-            self.swidget.setCurrentIndex(1)
-            self.progress_bar_animation.start()
-
-    def loding_screen(self):
-        loading_screen_widget = QWidget()
-        loading_screen_widget.setContentsMargins(0, 0, 0, 0)
-        loading_screen_widget.setFixedSize(self.width(), self.height())
-        self.swidget.addWidget(loading_screen_widget)
-
-        get_ready_label = QLabel(loading_screen_widget)
-        get_ready_label.setFixedSize(*map(round, (self.width() * 0.6, self.height() * 0.2)))
-        get_ready_label.move(
-            self.rect().center() - get_ready_label.rect().center() - QPoint(0, get_ready_label.height()))
-        get_ready_label.setStyleSheet("background-color: rgba(0, 0, 0, 0); color: rgb(207, 184, 29)")
-        get_ready_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        saftey_rule_font = QFont("Consolas", 0, 0, True)
-        saftey_rule_font.setBold(True)
-        saftey_rule_font.setPixelSize(round(self.width() * 0.035))
-        get_ready_label.setFont(saftey_rule_font)
-        get_ready_label.setText("Get ready for the ride...")
-
-        loding_progress_bar = QProgressBar(loading_screen_widget)
-        loding_progress_bar.setContentsMargins(0, 0, 0, 0)
-        loding_progress_bar.setFixedSize(
-            *map(round, (loading_screen_widget.width() * 0.7, loading_screen_widget.height() * 0.1)))
-        loding_progress_bar.move(self.rect().center() - loding_progress_bar.rect().center())
-        loding_progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        loding_progress_bar_font = QFont("Consolas", 0, 0, True)
-        loding_progress_bar_font.setBold(True)
-        loding_progress_bar_font.setPixelSize(round(self.width() * 0.04))
-        loding_progress_bar.setFont(loding_progress_bar_font)
-
-        grad = "qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 {color1}, stop:{value} {color2}, stop: 1.0 {color3});".format(
-            color1=QColor(240, 0, 0).name(), color2=QColor(255, 80, 0).name(), color3=QColor(255, 255, 0).name(),
-            value=0.3)
-        loding_progress_bar.setStyleSheet(
-            "QProgressBar {background-color: rgba(0, 0, 0, 0); color: white; border-radius: %spx;}" % str(
-                loding_progress_bar.height() // 2)
-            + "QProgressBar::chunk {background-color: %s; border-radius: %spx;}" % (grad,
-                                                                                    str(loding_progress_bar.height() // 2)))
-
-        self.progress_bar_animation = QPropertyAnimation(loding_progress_bar, b"value")
-        self.progress_bar_animation.setStartValue(loding_progress_bar.height() * 0.2)
-        self.progress_bar_animation.valueChanged.connect(self.driving_rule_info)
-        self.progress_bar_animation.setEndValue(100)
-        self.progress_bar_animation.setDuration(3000)
-
-        self.saftey_rules = ("Do not drink and drive.", "Always wear a helmet!", "Drive within the speed limits.",
-                             "Don't use mobile phones while driving.", "Buckle up before you drive.",
-                             "Keep a safe distance from vehicles!")
-
-        self.saftey_rule_label = QLabel(loading_screen_widget)
-        self.saftey_rule_label.setFixedSize(*map(round, (self.width() * 0.6, self.height() * 0.2)))
-        self.saftey_rule_label.move(
-            self.rect().center() - self.saftey_rule_label.rect().center() + QPoint(0, self.saftey_rule_label.height()))
-        self.saftey_rule_label.setStyleSheet("background-color: rgba(0, 0, 0, 0); color: yellow")
-        self.saftey_rule_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        saftey_rule_font = QFont("Consolas", 0, 0, True)
-        saftey_rule_font.setBold(True)
-        saftey_rule_font.setPixelSize(round(self.width() * 0.025))
-        self.saftey_rule_label.setFont(saftey_rule_font)
-        self.saftey_rule_label.setText(random.sample(self.saftey_rules, 1)[0])
-
-    def driving_rule_info(self, val):
-        if val % 33 == 0 and val != 99:
-            self.saftey_rule_label.setText(random.sample(self.saftey_rules, 1)[0])
-        if val == 100:
-            self.swidget.setCurrentIndex(2)
-            self.dash_board_design_widget.start_up_animation()
 
     def dash_board_design(self):
         self.dash_board_design_widget = _DashBoardContolsDesign(self.swidget)
@@ -888,8 +726,6 @@ class _DashBoardControls(QObject):
         self.dashboard_height = 720
         self.dashboard_width = 1280
         self.creator_btn_hide = False
-        self.start_skip = False
-        self.loading_skip = False
         self.speedometer_topspeed = 200
         self.battery_level = 100
         self.charging_state = 0  # off
@@ -902,8 +738,7 @@ class _DashBoardControls(QObject):
 
     def launch_dashboard(self):
         app = QApplication(sys.argv)
-        self.dash_board = _DashBoardMain(None, (self.dashboard_width, self.dashboard_height), \
-                                         self.creator_btn_hide, self.start_skip, self.loading_skip)
+        self.dash_board = _DashBoardMain(None, (self.dashboard_width, self.dashboard_height), self.creator_btn_hide)
         self.startup_values_setter()
         if __name__ == "__main__":  # for install default key event if dashboard called in main thread
             self.dash_board.installEventFilter(self.dash_board)
@@ -927,12 +762,6 @@ class _DashBoardControls(QObject):
 
     def hide_creator_button(self, hide):
         self.creator_btn_hide = hide
-
-    def skip_start_screen(self, skip):
-        self.start_skip = skip
-
-    def skip_loading_screen(self, skip):
-        self.loading_skip = skip
 
     def set_speedometer_range(self, top_speed):
         self.speedometer_topspeed = top_speed
@@ -982,13 +811,11 @@ class DashBoard(QWidget):
         self.vlayout = QVBoxLayout()
         self.setLayout(self.vlayout)
 
-    def show_dashboard(self, hide_creator_button: bool = False, skip_start_screen: bool = False,
-                       skip_loading_screen: bool = False):
+    def show_dashboard(self, hide_creator_button: bool = False):
         """This method is to show the dashboard in your window"""
         global _dash_board
 
-        self.dash_board_widget = _DashBoardMain(self, (self.width(), self.height()), hide_creator_button,
-                                                skip_start_screen, skip_loading_screen, True)
+        self.dash_board_widget = _DashBoardMain(self, (self.width(), self.height()), hide_creator_button, True)
         self.dash_board_widget.move(0, 0)
         self.vlayout.addWidget(self.dash_board_widget)
 
@@ -1016,16 +843,6 @@ class TriggerAction():
         """To hide creator button on start screen \n note: this method should \
             be called before you call launch_dashboard() method to take effect"""
         self.__dbc.hide_creator_button(hide)
-
-    def skip_start_screen(self, skip: bool):
-        """Skip start screen and directly go to loding screen \n note: this method should \
-            be called before you call launch_dashboard() method to take effect"""
-        self.__dbc.skip_start_screen(skip)
-
-    def skip_loading_screen(self, skip: bool):
-        """Skip loading screen and directly go to dashboard screen \n note: this method should \
-            be called before you call launch_dashboard() method to take effect"""
-        self.__dbc.skip_loading_screen(skip)
 
     def set_speedometer_range(self, top_speed: int):
         """Set speedometer range (i.e.) 0 to top speed \n
