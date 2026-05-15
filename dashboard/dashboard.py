@@ -16,29 +16,22 @@ _RENDER_HINTS = (
         | QPainter.RenderHint.TextAntialiasing
 )
 _dash_board = None
+BACKGROUND_COLOR = "#000000"
 
 
 class _DashBoardMain(QWidget):
     """WARNING: This is a private class. do not import this."""
 
     def __init__(self, parent, size: tuple | list = (1280, 720)):
-        super().__init__()
-        # Setting window to no icon, frameless and transparent
-        self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
+        super().__init__(parent)
+        if parent is None:
+            self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAutoFillBackground(True)
+        self.setContentsMargins(0, 0, 0, 0)
         self.setFixedSize(*size)
 
-        self.oldPos = QCursor().pos()
-
         self.initUI()
-
-        self.keys_ = {Qt.Key.Key_W: False, Qt.Key.Key_H: False, Qt.Key.Key_Left: False,
-                      Qt.Key.Key_Right: False, Qt.Key.Key_Space: False, Qt.Key.Key_Escape: False}
-
-        self.key_action_timer = QTimer()
-        self.key_action_timer.timeout.connect(self.keyAction)
-        self.key_action_timer.start(5)
 
     def initUI(self):
         self.stacked_widget()
@@ -49,9 +42,10 @@ class _DashBoardMain(QWidget):
     def stacked_widget(self):
         self.swidget = QStackedWidget(self)
         self.swidget.setContentsMargins(0, 0, 0, 0)
-        grad = "qlineargradient(spread:pad, x1:0.6, y1:0.4, x2:0.1, y2:0.8, stop:0 {color1}, stop:{value} {color2}, stop:1.0 {color1});".format(
-            color1=QColor(0, 0, 0, 100).name(), color2=QColor(13, 13, 13).name(), value=0.5)
-        self.setStyleSheet("background-color: %s;" % grad)
+        self.swidget.setStyleSheet(
+            "background-color: %s; border: 0; margin: 0; padding: 0;" % BACKGROUND_COLOR
+        )
+        self.setStyleSheet("background-color: %s; border: 0;" % BACKGROUND_COLOR)
         self.swidget.setFixedSize(self.width(), self.height())
         self.swidget.setCurrentIndex(0)
 
@@ -60,62 +54,6 @@ class _DashBoardMain(QWidget):
     def dash_board_design(self):
         self.dash_board_design_widget = _DashBoardContolsDesign(self.swidget)
         self.swidget.addWidget(self.dash_board_design_widget)
-
-    def mouseDoubleClickEvent(self, event):
-        pass
-
-    def mousePressEvent(self, event):
-        pass
-
-    def mouseMoveEvent(self, event):
-        pass
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape:
-            QCoreApplication.instance().quit()
-
-    def customKeyPressEvent(self, event):
-
-        # speedometer
-        if event.key() == Qt.Key.Key_W or self.keys_[Qt.Key.Key_W]:
-            self.keys_[event.key()] = True
-
-        # break
-        if event.key() == Qt.Key.Key_Space or self.keys_[Qt.Key.Key_Space]:
-            self.keys_[event.key()] = True
-
-    def customKeyReleaseEvent(self, event):
-
-        # speedometer
-        if event.key() == Qt.Key.Key_W and not event.isAutoRepeat():
-            self.keys_[event.key()] = False
-            self.dash_board_design_widget.set_accelerator_state(0)
-
-
-        # break
-        if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
-            self.keys_[event.key()] = False
-            self.dash_board_design_widget.set_break_state(0)
-
-    def keyAction(self):
-        if any(self.keys_.values()):
-
-            # speedometer
-            if self.keys_[Qt.Key.Key_W]:
-                self.dash_board_design_widget.set_accelerator_state(1)
-
-            # break
-            if self.keys_[Qt.Key.Key_Space]:
-                self.dash_board_design_widget.set_break_state(1)
-
-    def eventFilter(self, source, event):
-        if event.type() == QEvent.Type.KeyPress:
-            self.customKeyPressEvent(event)
-        if event.type() == QEvent.Type.KeyRelease:
-            if not event.isAutoRepeat():
-                self.customKeyReleaseEvent(event)
-
-        return super().eventFilter(source, event)
 
 
 class _DashBoardContolsDesign(QWidget):
@@ -127,38 +65,8 @@ class _DashBoardContolsDesign(QWidget):
         self.resize(self.parent_.size())
         self.setContentsMargins(0, 0, 0, 0)
 
-        self.break_properties()
-        self.accelerator_properties()
         self.speedometer_properties()
         self.rpm_properties()
-
-    def break_properties(self):
-        self.break_state = 0
-        self.break_color_lst = (QColor(67, 13, 13, 200), QGradient(QGradient.Preset.ColorfulPeach))
-
-    def set_break_state(self, val):
-        self.break_state = val
-        self.repaint()
-
-    def break_painting(self, painter: QPainter):
-        # setting break font
-        break_font = QFont("Consolas", 0, 0, True)
-        break_font.setPixelSize(round(self.width() * 0.045))
-        break_fm = QFontMetrics(break_font)
-        break_rect = break_fm.boundingRect("BREAK")
-        painter.setFont(break_font)
-
-        break_rect.moveTo(
-            self.rect().center() + QPointF(self.rect().width() * 0.345, self.rect().height() * 0.1).toPoint())
-
-        painter.setPen(QPen(self.break_color_lst[self.break_state], round(self.width() * 0.0025)))
-        painter.drawText(break_rect, Qt.AlignmentFlag.AlignCenter, "BREAK")
-
-    def accelerator_properties(self):
-        self.speed_angle_factor = 200 / 300  # 200 default top speed and 300 available angle of speedometer
-        self.speed = 0
-        self.accelerator_state = 0
-        self.accelerator_color_lst = (QColor(67, 13, 13, 200), QGradient(QGradient.Preset.FruitBlend))
 
     def set_speed(self, val):
         self.speed = round(val / self.speed_angle_factor) if round(val / self.speed_angle_factor) <= 300 else 300
@@ -168,16 +76,12 @@ class _DashBoardContolsDesign(QWidget):
         return round(self.speed * self.speed_angle_factor)
 
     def speedometer_properties(self):
-        self.speedometer_bounding_rect = QRectF(self.width() * 0.173, self.height() * 0.2, self.width() * 0.4,
-                                                self.width() * 0.4)
-
-        self.enable_speedometer_resetter = True
-
-        self.speedometer_resetter_timer = QTimer()
-        self.speedometer_resetter_timer.timeout.connect(self.speedometer_resetter)
-        self.speedometer_resetter_timer.start(5)
+        self.speedometer_bounding_rect = QRectF(self.width() * 0.02, self.height() * 0.02, self.width() * 0.6,
+                                                self.width() * 0.6)
 
         self.speed_range = 200
+        self.speed_angle_factor = self.speed_range / 300
+        self.speed = 0
         self.for_loop_count = self.speed_range // 20 + 2
         self.angle_to_rotate = 300 / (self.speed_range / 20)
         self.compromise_angle = 30 - self.angle_to_rotate
@@ -199,21 +103,6 @@ class _DashBoardContolsDesign(QWidget):
         self.compromise_angle_half = self.compromise_angle + self.angle_to_rotate / 2
         self.enable_sub_number = True if self.speed_range <= 260 else False
         self.repaint()
-
-    def set_speedometer_resetter_state(self, val):
-        self.enable_speedometer_resetter = val
-
-    def speedometer_resetter(self):
-        if self.speed > 0 and self.enable_speedometer_resetter:
-            if not self.accelerator_state:  # accelerator released
-                if self.break_state:  # break presssed
-                    self.speed -= 3 * self.speed_angle_factor
-                else:
-                    self.speed -= self.speed_angle_factor
-            if self.break_state:  # break presssed
-                self.speed -= 2 * self.speed_angle_factor
-            if self.speed < 0: self.speed = 0
-            self.repaint()
 
     def speedometer_painting(self, painter: QPainter):
         # inner dial design
@@ -367,7 +256,7 @@ class _DashBoardContolsDesign(QWidget):
         rpm_bounding_rect = self.speedometer_bounding_rect.toRect()
         rpm_bounding_rect.setSize(
             QSizeF(rpm_bounding_rect.width() * 0.8, rpm_bounding_rect.width() * 0.8).toSize())
-        rpm_overlap = round(rpm_bounding_rect.width() * 0.31)
+        rpm_overlap = round(rpm_bounding_rect.width() * 0.317)
         rpm_bounding_rect.moveBottomLeft(
             self.speedometer_bounding_rect.toRect().bottomRight() - QPoint(rpm_overlap, 0))
 
@@ -468,13 +357,7 @@ class _DashBoardContolsDesign(QWidget):
         painter = QPainter(self)
         painter.setRenderHints(_RENDER_HINTS, True)
 
-        linearGradient = QLinearGradient(self.rect().topLeft(), self.rect().bottomRight())
-        linearGradient.setColorAt(0.2, QColor(0, 0, 0))
-        linearGradient.setColorAt(0.7, QColor(16, 0, 0))
-        linearGradient.setColorAt(0.5, QColor(56, 0, 0))
-
-        painter.setBrush(linearGradient)
-        painter.drawRect(self.rect())
+        painter.fillRect(self.rect(), QColor(BACKGROUND_COLOR))
 
         self.speedometer_painting(painter)
         self.tachometer_painting(painter)
@@ -483,10 +366,7 @@ class _DashBoardContolsDesign(QWidget):
 class _DashBoardControls(QObject):
     """WARNING: This is a private class. do not import this."""
     set_speedometer_range_sig = pyqtSignal(int)
-    accelerator_sig = pyqtSignal(int)
     set_current_speed_signal = pyqtSignal(int)
-    set_speedometer_resetter_sig = pyqtSignal(int)
-    break_sig = pyqtSignal(int)
 
     set_rpm_signal = pyqtSignal(int)
 
@@ -500,21 +380,15 @@ class _DashBoardControls(QObject):
         if _dash_board is not None:
             self.dash_board = _dash_board
             self.startup_values_setter()
-            if __name__ == "__main__":  # for install default key event if dashboard called in main thread
-                self.dash_board.installEventFilter(self.dash_board)
             self.all_connector()
 
     def required_values(self):
-        # default keys to prevent error
-        self.keys_ = {Qt.Key.Key_W: False, Qt.Key.Key_H: False, Qt.Key.Key_Left: False,
-                      Qt.Key.Key_Right: False, Qt.Key.Key_Space: False, Qt.Key.Key_Escape: False}
-        self.dashboard_height = 720
-        self.dashboard_width = 1280
+        self.dashboard_height = 600
+        self.dashboard_width = 900
         self.speedometer_topspeed = 200
         self.rpm = 0
 
     def startup_values_setter(self):
-        self.keys_ = self.dash_board.keys_  # orginal keys
         self.dash_board.dash_board_design_widget.set_speedometer_range(self.speedometer_topspeed)
         self.dash_board.dash_board_design_widget.set_rpm(self.rpm)
 
@@ -522,8 +396,6 @@ class _DashBoardControls(QObject):
         app = QApplication(sys.argv)
         self.dash_board = _DashBoardMain(None, (self.dashboard_width, self.dashboard_height))
         self.startup_values_setter()
-        if __name__ == "__main__":  # for install default key event if dashboard called in main thread
-            self.dash_board.installEventFilter(self.dash_board)
         self.all_connector()
         self.dash_board.show()
         app.exec()
@@ -531,9 +403,6 @@ class _DashBoardControls(QObject):
     def all_connector(self):
         self.set_speedometer_range_sig.connect(self.dash_board.dash_board_design_widget.set_speedometer_range)
         self.set_current_speed_signal.connect(self.dash_board.dash_board_design_widget.set_speed)
-        self.set_speedometer_resetter_sig.connect(
-            self.dash_board.dash_board_design_widget.set_speedometer_resetter_state)
-        self.break_sig.connect(self.dash_board.dash_board_design_widget.set_break_state)
         self.set_rpm_signal.connect(self.dash_board.dash_board_design_widget.set_rpm)
 
     def set_dashboard_size(self, width, height):
@@ -556,7 +425,10 @@ class DashBoard(QWidget):
         super(DashBoard, self).__init__(parent)
 
         self.vlayout = QVBoxLayout()
+        self.vlayout.setContentsMargins(0, 0, 0, 0)
+        self.vlayout.setSpacing(0)
         self.setLayout(self.vlayout)
+        self.setStyleSheet("background-color: %s; border: 0;" % BACKGROUND_COLOR)
 
     def show_dashboard(self):
         """This method is to show the dashboard in your window"""
@@ -567,6 +439,16 @@ class DashBoard(QWidget):
         self.vlayout.addWidget(self.dash_board_widget)
 
         _dash_board = self.dash_board_widget
+
+    def set_speed(self, current_speed):
+        self.dash_board_widget.dash_board_design_widget.set_speed(current_speed)
+
+    def set_rpm(self, current_rpm):
+        self.dash_board_widget.dash_board_design_widget.set_rpm(current_rpm)
+
+    def set_values(self, current_speed, current_rpm):
+        self.set_speed(current_speed)
+        self.set_rpm(current_rpm)
 
 
 class TriggerAction():

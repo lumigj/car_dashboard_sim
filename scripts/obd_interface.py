@@ -12,17 +12,21 @@ from PyQt5.QtWidgets import (
     QApplication,
     QFrame,
     QGridLayout,
-    QHBoxLayout,
     QLabel,
     QVBoxLayout,
     QWidget,
 )
-from pint.delegates.formatter import full
 
+from dashboard.dashboard import DashBoard
 from obd_logger import connect, get_commands, simple_value
 
 
 is_mock = False
+BACKGROUND_COLOR = "#000000"
+WINDOW_WIDTH = 1280
+WINDOW_HEIGHT = 720
+DASHBOARD_WIDTH = 900
+DASHBOARD_HEIGHT = 600
 DEFAULT_PORTS = [
     "/dev/ttyUSB0",
     "/dev/ttyUSB1",
@@ -35,7 +39,7 @@ FAST_COMMANDS = [
 
 ]
 
-UI_REFRESH_MS = 125
+UI_REFRESH_MS = 200
 RETRY_INTERVAL_S = 10.0
 SLOW_COMMANDS = {
     "THROTTLE_POS": 0.3,
@@ -97,6 +101,13 @@ def compact_value(name, value):
 
 def display_name(name):
     return name.replace("_", " ")
+
+
+def numeric_value(value):
+    text = str(value)
+    if text == "-":
+        return 0
+    return round(float(text.split(" ", 1)[0]))
 
 
 class QueryThread(QThread):
@@ -257,12 +268,12 @@ class ObdWindow(QWidget):
         self.status = "STARTING"
 
         self.setWindowTitle("OBD Dashboard")
-        self.resize(800, 480)
-        self.setStyleSheet("background: #05080e; color: white;")
+        self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.setStyleSheet("background-color: %s; color: white;" % BACKGROUND_COLOR)
 
         layout = QVBoxLayout()
-        layout.setContentsMargins(18, 14, 18, 18)
-        layout.setSpacing(12)
+        layout.setContentsMargins(18, 12, 18, 14)
+        layout.setSpacing(10)
 
         self.status_label = QLabel(self.status)
         self.status_label.setStyleSheet("font-size: 18px; color: #ff6b6b;")
@@ -271,11 +282,11 @@ class ObdWindow(QWidget):
 
         self.labels = {}
 
-        primary_layout = QHBoxLayout()
-        primary_layout.setSpacing(14)
-        for name in PRIMARY_COMMANDS:
-            primary_layout.addWidget(self.make_primary_panel(name))
-        layout.addLayout(primary_layout, 3)
+        self.dashboard_widget = DashBoard(self)
+        self.dashboard_widget.setFixedSize(DASHBOARD_WIDTH, DASHBOARD_HEIGHT)
+        self.dashboard_widget.setStyleSheet("background-color: %s; border: 0;" % BACKGROUND_COLOR)
+        self.dashboard_widget.show_dashboard()
+        layout.addWidget(self.dashboard_widget, 1, Qt.AlignmentFlag.AlignCenter)
 
         data_grid = QGridLayout()
         data_grid.setHorizontalSpacing(10)
@@ -297,40 +308,14 @@ class ObdWindow(QWidget):
         self.ui_timer.start(UI_REFRESH_MS)
         self.update_values()
 
-    def make_primary_panel(self, name):
-        frame = QFrame()
-        frame.setStyleSheet(
-            "QFrame {"
-            "background: #101826;"
-            "border: 2px solid #26384d;"
-            "border-radius: 12px;"
-            "}"
-        )
-        layout = QVBoxLayout()
-        layout.setContentsMargins(18, 14, 18, 14)
-
-        title = QLabel(display_name(name))
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 24px; color: #8fb3d9; font-weight: bold; border: 0;")
-        layout.addWidget(title)
-
-        value = QLabel("-")
-        value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        value.setStyleSheet("font-size: 108px; color: #f8fafc; font-weight: bold; border: 0;")
-        layout.addWidget(value, 1)
-
-        frame.setLayout(layout)
-        self.labels[name] = value
-        return frame
-
     def make_data_panel(self, name):
         frame = QFrame()
         frame.setStyleSheet(
             "QFrame {"
-            "background: #0b1220;"
-            "border: 1px solid #223047;"
+            "background-color: %s;"
+            "border: 1px solid #202020;"
             "border-radius: 8px;"
-            "}"
+            "}" % BACKGROUND_COLOR
         )
         layout = QVBoxLayout()
         layout.setContentsMargins(12, 8, 12, 8)
@@ -359,7 +344,11 @@ class ObdWindow(QWidget):
 
     def update_values(self):
         self.status_label.setText(self.status)
-        for name in ALL_COMMANDS:
+        self.dashboard_widget.set_values(
+            numeric_value(self.latest_values["SPEED"]),
+            numeric_value(self.latest_values["RPM"]),
+        )
+        for name in self.labels:
             self.labels[name].setText(compact_value(name, self.latest_values[name]))
 
     def closeEvent(self, event):
@@ -384,9 +373,7 @@ def main():
     query_thread = QueryThread(args.port)
     window = ObdWindow(query_thread)
 
-    if is_mf :
-        window.showFullScreen()
-    if is_mock:
+    if is_mock and not is_mf:
         window.show()
     else:
         window.showFullScreen()
