@@ -20,8 +20,6 @@ def CustomkeyboardEvent(event):
             trigger_action.apply_accelerator()
         if event.name == 'space':  # press break
             trigger_action.apply_break()
-        if event.name == 'h':  # press horn
-            trigger_action.sound_horn()
         if event.name == 'left':  # triger left indicator state
             trigger_action.left_indicator_on_or_off()
         if event.name == 'right':  # triger right indicator state
@@ -46,8 +44,7 @@ def CustomkeyboardEvent(event):
             trigger_action.release_accelerator()
         if event.name == 'space':  # release break
             trigger_action.release_break()
-        if event.name == 'h':  # release horn
-            trigger_action.off_horn()
+
 
         # here indicator is not called because basically indicator is a
         # toggle switch not a push button

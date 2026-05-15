@@ -274,9 +274,6 @@ class _DashBoardMain(QWidget):
             self.keys_[event.key()] = True
             self.dash_board_design_widget.indicator_triger(1)
 
-        # horn
-        if event.key() == Qt.Key.Key_H or self.keys_[Qt.Key.Key_H]:
-            self.keys_[event.key()] = True
 
         # speedometer
         if event.key() == Qt.Key.Key_W or self.keys_[Qt.Key.Key_W]:
@@ -298,10 +295,6 @@ class _DashBoardMain(QWidget):
             self.keys_[event.key()] = False
             self.dash_board_design_widget.set_accelerator_state(0)
 
-        # horn
-        if event.key() == Qt.Key.Key_H and not event.isAutoRepeat():
-            self.keys_[event.key()] = False
-            self.dash_board_design_widget.set_horn_state(0)
 
         # break
         if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
@@ -310,9 +303,6 @@ class _DashBoardMain(QWidget):
 
     def keyAction(self):
         if any(self.keys_.values()):
-            # horn
-            if self.keys_[Qt.Key.Key_H]:
-                self.dash_board_design_widget.set_horn_state(1)
 
             # speedometer
             if self.keys_[Qt.Key.Key_W]:
@@ -343,7 +333,6 @@ class _DashBoardContolsDesign(QWidget):
 
         self.header_properties()
         self.indicators_properties()
-        self.horn_properties()
         self.charge_properties()
         self.break_properties()
         self.accelerator_properties()
@@ -485,54 +474,9 @@ class _DashBoardContolsDesign(QWidget):
 
         self.repaint()
 
-    def horn_properties(self):
-        self.horn_sound_color_lst = (QColor(67, 13, 13, 200), QGradient(QGradient.Preset.BlackSea))
-        self.horn_sound_color_idx = 0
-        self.horn_state = 0  # 0 -> off 1 -> on
 
-    def horn_painting(self, painter: QPainter):
-        painter.setPen(QPen(QColorConstants.Black, round(self.width() * 0.0012)))
-        painter.setBrush(QBrush(QGradient(QGradient.Preset.RichMetal)))
 
-        horn_trans = QTransform()
-        horn_trans.scale(self.width() * 0.0012, self.height() * 0.002)
 
-        horn = QPolygonF((QPointF(40, 50), QPointF(60, 50), QPointF(90, 30), QPointF(100, 30),
-                          QPointF(100, 100), QPointF(90, 100), QPointF(60, 80), QPointF(40, 80)))
-
-        scaled_horn = horn_trans.map(horn)
-        scaled_horn.translate(-scaled_horn.boundingRect().x(), -scaled_horn.boundingRect().y())
-        scaled_horn.translate(self.width() * 0.03, self.height() * 0.7)
-        painter.drawPolygon(scaled_horn)
-
-        horn_rect = scaled_horn.boundingRect().toRect()
-
-        painter.setPen(QPen(QColorConstants.Gray, round(self.width() * 0.0012)))
-        painter.drawLine(horn_rect.topRight(), horn_rect.bottomRight())
-
-        painter.setPen(QPen(self.horn_sound_color_lst[self.horn_sound_color_idx], round(self.width() * 0.0025),
-                            cap=Qt.PenCapStyle.RoundCap))
-
-        sound_rect1 = QRect(0, 0, round(horn_rect.width() * 1.5), round(horn_rect.height() * 1.5))
-        sound_rect1.moveCenter(horn_rect.center())
-        sound_rect1.moveRight(round(horn_rect.width() * 1.7))
-        painter.drawArc(sound_rect1.x(), sound_rect1.y(), sound_rect1.width(), sound_rect1.height(), 35 * 16, -70 * 16)
-
-        sound_rect2 = QRect(0, 0, round(horn_rect.width() * 1.3), round(horn_rect.height() * 1.3))
-        sound_rect2.moveCenter(horn_rect.center())
-        sound_rect2.moveRight(round(horn_rect.width() * 1.6))
-        painter.drawArc(sound_rect2.x(), sound_rect2.y(), sound_rect2.width(), sound_rect2.height(), 27 * 16, -55 * 16)
-
-        sound_rect3 = QRect(0, 0, round(horn_rect.width() * 1.2), round(horn_rect.height() * 1.2))
-        sound_rect3.moveCenter(horn_rect.center())
-        sound_rect3.moveRight(round(horn_rect.width() * 1.5))
-        painter.drawArc(sound_rect3.x(), sound_rect3.y(), sound_rect3.width(), sound_rect3.height(), 17 * 16, -35 * 16)
-
-    def set_horn_state(self, val):
-        self.horn_sound_color_idx = val
-        if self.horn_sound_color_idx != self.horn_state:
-            self.repaint()
-        self.horn_state = val
 
     def charge_properties(self):
         self.charge_default_state = 0
@@ -994,9 +938,9 @@ class _DashBoardContolsDesign(QWidget):
             self.right_indicator_color = self.indicator_color_list[1]
         elif loop_count == 5:
             self.right_indicator_color = self.indicator_color_list[0]
-            self.set_horn_state(1)
+
         elif loop_count == 6:
-            self.set_horn_state(0)
+
             self.charge_state = 1
         elif loop_count == 7:
             if not self.charge_default_state:
@@ -1024,7 +968,7 @@ class _DashBoardContolsDesign(QWidget):
         self.header_painting(painter)
         self.indicators_painting(painter)
         if self.other_visible:
-            self.horn_painting(painter)
+
             self.charge_painting(painter)
             self.break_painting(painter)
             self.accelerator_painting(painter)
@@ -1039,7 +983,7 @@ class _DashBoardControls(QObject):
     set_current_speed_signal = pyqtSignal(int)
     set_speedometer_resetter_sig = pyqtSignal(int)
     break_sig = pyqtSignal(int)
-    horn_sig = pyqtSignal(int)
+
     indicator_sig = pyqtSignal(int)
     set_battery_remaining_power_sig = pyqtSignal(int)
     charging_sig = pyqtSignal(int)
@@ -1095,7 +1039,6 @@ class _DashBoardControls(QObject):
         self.set_speedometer_resetter_sig.connect(
             self.dash_board.dash_board_design_widget.set_speedometer_resetter_state)
         self.break_sig.connect(self.dash_board.dash_board_design_widget.set_break_state)
-        self.horn_sig.connect(self.dash_board.dash_board_design_widget.set_horn_state)
         self.indicator_sig.connect(self.dash_board.dash_board_design_widget.indicator_triger)
         self.set_battery_remaining_power_sig.connect(self.dash_board.dash_board_design_widget.set_battery)
         self.charging_sig.connect(self.dash_board.dash_board_design_widget.set_charge_state)
@@ -1139,13 +1082,6 @@ class _DashBoardControls(QObject):
         self.keys_[Qt.Key.Key_Space] = False
         self.break_sig.emit(0)
 
-    def sound_horn(self):
-        self.keys_[Qt.Key.Key_H] = True
-        self.horn_sig.emit(1)
-
-    def off_horn(self):
-        self.keys_[Qt.Key.Key_H] = False
-        self.horn_sig.emit(0)
 
     def left_indicator_on_or_off(self):
         self.keys_[Qt.Key.Key_Left] = True
@@ -1256,14 +1192,6 @@ class TriggerAction():
     def release_break(self):
         """To deactivate break"""
         self.__dbc.release_break()
-
-    def sound_horn(self):
-        """To activate horn"""
-        self.__dbc.sound_horn()
-
-    def off_horn(self):
-        """To deactivate horn"""
-        self.__dbc.off_horn()
 
     def left_indicator_on_or_off(self):
         """Blink left indicator \n note: call this function \
