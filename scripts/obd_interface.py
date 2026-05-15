@@ -34,6 +34,7 @@ BASE_WINDOW_WIDTH = 1280
 BASE_WINDOW_HEIGHT = 720
 BASE_DASHBOARD_WIDTH = 900
 BASE_DASHBOARD_HEIGHT = 600
+DASHBOARD_HEIGHT_RATIO = 0.62
 DEFAULT_PORTS = [
     "/dev/ttyUSB0",
     "/dev/ttyUSB1",
@@ -135,6 +136,12 @@ def fit_16_9_size(width, height):
 
 def scaled(value, scale):
     return max(1, round(value * scale))
+
+
+def dashboard_size(window_height):
+    height = round(window_height * DASHBOARD_HEIGHT_RATIO)
+    width = round(height * BASE_DASHBOARD_WIDTH / BASE_DASHBOARD_HEIGHT)
+    return width, height
 
 
 class QueryThread(QThread):
@@ -304,12 +311,12 @@ class ProgressMetric(QFrame):
         )
         layout = QVBoxLayout()
         layout.setContentsMargins(
-            scaled(12, scale),
-            scaled(10, scale),
-            scaled(12, scale),
-            scaled(10, scale),
+            scaled(8, scale),
+            scaled(6, scale),
+            scaled(8, scale),
+            scaled(6, scale),
         )
-        layout.setSpacing(scaled(8, scale))
+        layout.setSpacing(scaled(4, scale))
 
         title_label = QLabel(title)
         title_label.setStyleSheet(
@@ -358,12 +365,12 @@ class TemperatureMetric(QFrame):
         )
         layout = QVBoxLayout()
         layout.setContentsMargins(
-            scaled(8, scale),
-            scaled(10, scale),
-            scaled(8, scale),
-            scaled(10, scale),
+            scaled(6, scale),
+            scaled(6, scale),
+            scaled(6, scale),
+            scaled(6, scale),
         )
-        layout.setSpacing(scaled(6, scale))
+        layout.setSpacing(scaled(4, scale))
 
         title_label = QLabel(title)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -375,7 +382,7 @@ class TemperatureMetric(QFrame):
 
         body_layout = QHBoxLayout()
         body_layout.setContentsMargins(0, 0, 0, 0)
-        body_layout.setSpacing(scaled(6, scale))
+        body_layout.setSpacing(scaled(4, scale))
 
         self.bar = QProgressBar()
         self.bar.setOrientation(Qt.Orientation.Vertical)
@@ -410,6 +417,7 @@ class ObdWindow(QWidget):
             self.window_width / BASE_WINDOW_WIDTH,
             self.window_height / BASE_WINDOW_HEIGHT,
         )
+        self.dashboard_width, self.dashboard_height = dashboard_size(self.window_height)
 
         self.setWindowTitle("OBD Dashboard")
         self.resize(self.window_width, self.window_height)
@@ -417,12 +425,12 @@ class ObdWindow(QWidget):
 
         layout = QVBoxLayout()
         layout.setContentsMargins(
-            scaled(18, self.scale),
-            scaled(12, self.scale),
-            scaled(18, self.scale),
-            scaled(14, self.scale),
+            scaled(8, self.scale),
+            scaled(4, self.scale),
+            scaled(8, self.scale),
+            scaled(6, self.scale),
         )
-        layout.setSpacing(scaled(10, self.scale))
+        layout.setSpacing(scaled(4, self.scale))
 
         self.status_label = QLabel(self.status)
         self.status_label.setStyleSheet(
@@ -435,20 +443,20 @@ class ObdWindow(QWidget):
         self.progress_metrics = {}
 
         dashboard_row = QHBoxLayout()
-        dashboard_row.setContentsMargins(scaled(20, self.scale), 0, 0, 0)
-        dashboard_row.setSpacing(scaled(16, self.scale))
+        dashboard_row.setContentsMargins(0, 0, 0, 0)
+        dashboard_row.setSpacing(scaled(6, self.scale))
         self.dashboard_widget = DashBoard(self)
         self.dashboard_widget.setFixedSize(
-            scaled(BASE_DASHBOARD_WIDTH, self.scale),
-            scaled(BASE_DASHBOARD_HEIGHT, self.scale),
+            self.dashboard_width,
+            self.dashboard_height,
         )
         self.dashboard_widget.setStyleSheet("background-color: %s; border: 0;" % BACKGROUND_COLOR)
         self.dashboard_widget.show_dashboard()
         dashboard_row.addWidget(self.dashboard_widget, 0, Qt.AlignmentFlag.AlignRight)
 
         right_metrics = QVBoxLayout()
-        right_metrics.setContentsMargins(0, scaled(20, self.scale), 0, scaled(20, self.scale))
-        right_metrics.setSpacing(scaled(12, self.scale))
+        right_metrics.setContentsMargins(0, scaled(4, self.scale), 0, scaled(4, self.scale))
+        right_metrics.setSpacing(scaled(6, self.scale))
         self.progress_metrics["THROTTLE_POS"] = ProgressMetric("THROTTLE POS", self.scale)
         self.progress_metrics["ENGINE_LOAD"] = ProgressMetric("ENGINE LOAD", self.scale)
         self.progress_metrics["COOLANT_TEMP"] = TemperatureMetric("COOLANT TEMP", self.scale)
@@ -458,8 +466,8 @@ class ObdWindow(QWidget):
         layout.addLayout(dashboard_row, 1)
 
         data_grid = QGridLayout()
-        data_grid.setHorizontalSpacing(scaled(10, self.scale))
-        data_grid.setVerticalSpacing(scaled(10, self.scale))
+        data_grid.setHorizontalSpacing(scaled(4, self.scale))
+        data_grid.setVerticalSpacing(scaled(4, self.scale))
         bottom_commands = [
             name
             for name in ALL_COMMANDS
@@ -492,25 +500,25 @@ class ObdWindow(QWidget):
         )
         layout = QVBoxLayout()
         layout.setContentsMargins(
-            scaled(12, self.scale),
-            scaled(8, self.scale),
-            scaled(12, self.scale),
-            scaled(8, self.scale),
+            scaled(6, self.scale),
+            scaled(3, self.scale),
+            scaled(6, self.scale),
+            scaled(3, self.scale),
         )
-        layout.setSpacing(scaled(4, self.scale))
+        layout.setSpacing(scaled(2, self.scale))
 
         title = QLabel(display_name(name))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet(
             "font-size: %dpx; color: #94a3b8; font-weight: bold; border: 0;"
-            % scaled(15, self.scale)
+            % scaled(14, self.scale)
         )
         layout.addWidget(title)
 
         value = QLabel("-")
         value.setAlignment(Qt.AlignmentFlag.AlignCenter)
         value.setStyleSheet(
-            "font-size: %dpx; color: #e2e8f0; border: 0;" % scaled(20, self.scale)
+            "font-size: %dpx; color: #e2e8f0; border: 0;" % scaled(18, self.scale)
         )
         value.setWordWrap(True)
         layout.addWidget(value, 1)
