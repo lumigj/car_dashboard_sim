@@ -266,14 +266,6 @@ class _DashBoardMain(QWidget):
             QCoreApplication.instance().quit()
 
     def customKeyPressEvent(self, event):
-        # indicator
-        if event.key() == Qt.Key.Key_Left:
-            self.keys_[event.key()] = True
-            self.dash_board_design_widget.indicator_triger(0)
-        if event.key() == Qt.Key.Key_Right:
-            self.keys_[event.key()] = True
-            self.dash_board_design_widget.indicator_triger(1)
-
 
         # speedometer
         if event.key() == Qt.Key.Key_W or self.keys_[Qt.Key.Key_W]:
@@ -284,11 +276,6 @@ class _DashBoardMain(QWidget):
             self.keys_[event.key()] = True
 
     def customKeyReleaseEvent(self, event):
-        # indicator
-        if event.key() == Qt.Key.Key_Left and not event.isAutoRepeat():
-            self.keys_[event.key()] = False
-        if event.key() == Qt.Key.Key_Right and not event.isAutoRepeat():
-            self.keys_[event.key()] = False
 
         # speedometer
         if event.key() == Qt.Key.Key_W and not event.isAutoRepeat():
@@ -332,7 +319,6 @@ class _DashBoardContolsDesign(QWidget):
         self.setContentsMargins(0, 0, 0, 0)
 
         self.header_properties()
-        self.indicators_properties()
         self.charge_properties()
         self.break_properties()
         self.accelerator_properties()
@@ -399,84 +385,6 @@ class _DashBoardContolsDesign(QWidget):
 
         painter.setPen(QPen(QGradient(QGradient.Preset.FreshOasis), round(self.width() * 0.0012)))
         if self.show_time: painter.drawText(time_rect, Qt.AlignmentFlag.AlignCenter, now.strftime("%I:%M:%S%p %a %d"))
-
-    def indicators_properties(self):
-        self.indicator_timer = QTimer()
-        self.indicator_timer.timeout.connect(self.indicator_blink_animation)
-
-        self.indicator_color_list = (QColorConstants.DarkGreen, QColorConstants.Green)
-
-        self.right_indicator_color = self.indicator_color_list[0]
-        self.left_indicator_color = self.indicator_color_list[0]
-
-        self.right_indicator_state = 0
-        self.left_indicator_state = 0
-
-        self.right_indicator_blink = 0
-        self.left_indicator_blink = 0
-
-        # left indicator
-        indicator_trans = QTransform()
-        indicator_trans.scale(self.width() * 0.001, self.height() * 0.0015)
-        left_idicator = QPolygonF((QPointF(40, 80), QPointF(90, 120), QPointF(90, 100), QPointF(150, 100),
-                                   QPointF(150, 60), QPointF(90, 60), QPointF(90, 40)))
-        self.scaled_left_idicator = indicator_trans.map(left_idicator)
-        self.scaled_left_idicator.translate(-self.scaled_left_idicator.boundingRect().x(),
-                                            -self.scaled_left_idicator.boundingRect().y())
-        self.scaled_left_idicator.translate(self.width() * 0.03, self.height() * 0.06)
-
-        # right indicator
-        rotate_t = QTransform()
-        rotate_t.rotate(180, Qt.Axis.YAxis)
-        self.scaled_right_idicator = self.scaled_left_idicator
-        self.scaled_right_idicator = rotate_t.map(self.scaled_right_idicator)
-        self.scaled_right_idicator.translate(-self.scaled_right_idicator.boundingRect().x(),
-                                             -self.scaled_right_idicator.boundingRect().y())
-        self.scaled_right_idicator.translate(
-            self.width() - self.scaled_right_idicator.boundingRect().width() - self.scaled_left_idicator.boundingRect().x(),
-            self.height() * 0.06)
-
-    def indicators_painting(self, painter: QPainter):
-        # drawing left indicator
-        painter.setPen(QPen(self.left_indicator_color, round(self.width() * 0.0012), join=Qt.PenJoinStyle.MiterJoin))
-        painter.setBrush(QBrush(self.left_indicator_color, Qt.BrushStyle.Dense3Pattern))
-        painter.drawPolygon(self.scaled_left_idicator)
-
-        # drawing right indicator
-        painter.setPen(QPen(self.right_indicator_color, round(self.width() * 0.0012), join=Qt.PenJoinStyle.MiterJoin))
-        painter.setBrush(QBrush(self.right_indicator_color, Qt.BrushStyle.Dense3Pattern))
-        painter.drawPolygon(self.scaled_right_idicator)
-
-    def indicator_triger(self, indecator):
-        if indecator == 0:  # left indicator
-            self.left_indicator_state = not self.left_indicator_state
-        if indecator == 1:  # right indicator
-            self.right_indicator_state = not self.right_indicator_state
-
-        if self.right_indicator_state or self.left_indicator_state:
-            self.indicator_timer.start(600)  # blink indicator interval of 600ms
-        else:
-            self.indicator_blink_animation()
-            self.indicator_timer.stop()
-
-    def indicator_blink_animation(self):
-        if self.right_indicator_state:
-            self.right_indicator_color = self.indicator_color_list[self.right_indicator_blink]
-            self.right_indicator_blink = not self.right_indicator_blink
-        else:
-            self.right_indicator_color = self.indicator_color_list[0]
-
-        if self.left_indicator_state:
-            self.left_indicator_color = self.indicator_color_list[self.left_indicator_blink]
-            self.left_indicator_blink = not self.left_indicator_blink
-        else:
-            self.left_indicator_color = self.indicator_color_list[0]
-
-        self.repaint()
-
-
-
-
 
     def charge_properties(self):
         self.charge_default_state = 0
@@ -835,12 +743,6 @@ class _DashBoardContolsDesign(QWidget):
     def start_up_animation(self):
         self.other_visible = False
 
-        indicator_animation = QVariantAnimation(self)
-        indicator_animation.setStartValue(self.width())
-        indicator_animation.setEndValue(round(self.width() * 0.03))
-        indicator_animation.valueChanged.connect(self.indicator_animation)
-        indicator_animation.setDuration(500)
-
         header_animation = QVariantAnimation(self)
         header_animation.setStartValue(0)
         header_animation.setEndValue(round(self.scaled_header_border.boundingRect().height()))
@@ -881,28 +783,10 @@ class _DashBoardContolsDesign(QWidget):
         pa_group.addAnimation(sa_speeddial_group)
 
         sa_group = QSequentialAnimationGroup(self)
-        sa_group.addAnimation(indicator_animation)
         sa_group.addAnimation(header_animation)
         sa_group.addAnimation(speedometer_popup_animation)
         sa_group.addAnimation(pa_group)
         sa_group.start(QAbstractAnimation.DeletionPolicy.DeleteWhenStopped)
-
-    def indicator_animation(self, pos):
-        self.scaled_header_border.translate(0,
-                                            -self.scaled_header_border.boundingRect().y() - self.scaled_header_border.boundingRect().height())
-        self.scaled_header_inner.translate(0,
-                                           -self.scaled_header_inner.boundingRect().y() - self.scaled_header_border.boundingRect().height())
-        # left indicator
-        self.scaled_left_idicator.translate(-self.scaled_left_idicator.boundingRect().x(),
-                                            -self.scaled_left_idicator.boundingRect().y())
-        self.scaled_left_idicator.translate(pos, self.height() * 0.06)
-        # right indicator
-        self.scaled_right_idicator.translate(-self.scaled_right_idicator.boundingRect().x(),
-                                             -self.scaled_right_idicator.boundingRect().y())
-        self.scaled_right_idicator.translate(
-            self.width() - self.scaled_right_idicator.boundingRect().width() - self.scaled_left_idicator.boundingRect().x(),
-            self.height() * 0.06)
-        self.repaint()
 
     def header_animation(self, pos):
         self.scaled_header_border.translate(0,
@@ -929,16 +813,13 @@ class _DashBoardContolsDesign(QWidget):
         if loop_count == 1:
             self.show_time = 1
         elif loop_count == 2:
-            self.left_indicator_color = self.indicator_color_list[1]
+            pass
         elif loop_count == 3:
-            self.left_indicator_color = self.indicator_color_list[0]
             self.header_border_color = 1
         elif loop_count == 4:
             self.header_border_color = 0
-            self.right_indicator_color = self.indicator_color_list[1]
         elif loop_count == 5:
-            self.right_indicator_color = self.indicator_color_list[0]
-
+            pass
         elif loop_count == 6:
 
             self.charge_state = 1
@@ -966,7 +847,6 @@ class _DashBoardContolsDesign(QWidget):
         painter.drawRect(self.rect())
 
         self.header_painting(painter)
-        self.indicators_painting(painter)
         if self.other_visible:
 
             self.charge_painting(painter)
@@ -984,7 +864,6 @@ class _DashBoardControls(QObject):
     set_speedometer_resetter_sig = pyqtSignal(int)
     break_sig = pyqtSignal(int)
 
-    indicator_sig = pyqtSignal(int)
     set_battery_remaining_power_sig = pyqtSignal(int)
     charging_sig = pyqtSignal(int)
 
@@ -1039,7 +918,6 @@ class _DashBoardControls(QObject):
         self.set_speedometer_resetter_sig.connect(
             self.dash_board.dash_board_design_widget.set_speedometer_resetter_state)
         self.break_sig.connect(self.dash_board.dash_board_design_widget.set_break_state)
-        self.indicator_sig.connect(self.dash_board.dash_board_design_widget.indicator_triger)
         self.set_battery_remaining_power_sig.connect(self.dash_board.dash_board_design_widget.set_battery)
         self.charging_sig.connect(self.dash_board.dash_board_design_widget.set_charge_state)
 
@@ -1081,15 +959,6 @@ class _DashBoardControls(QObject):
     def release_break(self):
         self.keys_[Qt.Key.Key_Space] = False
         self.break_sig.emit(0)
-
-
-    def left_indicator_on_or_off(self):
-        self.keys_[Qt.Key.Key_Left] = True
-        self.indicator_sig.emit(0)
-
-    def right_indicator_on_or_off(self):
-        self.keys_[Qt.Key.Key_Right] = True
-        self.indicator_sig.emit(1)
 
     def update_battery_power(self, current_battery_power):
         self.battery_level = current_battery_power
@@ -1192,16 +1061,6 @@ class TriggerAction():
     def release_break(self):
         """To deactivate break"""
         self.__dbc.release_break()
-
-    def left_indicator_on_or_off(self):
-        """Blink left indicator \n note: call this function \
-            again to invert current state of left indicator"""
-        self.__dbc.left_indicator_on_or_off()
-
-    def right_indicator_on_or_off(self):
-        """Blink right indicator \n note: call this function \
-            again to invert current state of right indicator"""
-        self.__dbc.right_indicator_on_or_off()
 
     def update_battery_power(self, current_battery_power: int):
         """To set current battery power level in percentage\n note: Value should be between 0 to 100"""

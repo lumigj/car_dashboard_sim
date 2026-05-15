@@ -20,10 +20,6 @@ def CustomkeyboardEvent(event):
             trigger_action.apply_accelerator()
         if event.name == 'space':  # press break
             trigger_action.apply_break()
-        if event.name == 'left':  # triger left indicator state
-            trigger_action.left_indicator_on_or_off()
-        if event.name == 'right':  # triger right indicator state
-            trigger_action.right_indicator_on_or_off()
 
         # below is how to turn on or off speedometer resetter internal function
         if event.name == 'r':
