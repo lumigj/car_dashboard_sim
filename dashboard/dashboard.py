@@ -38,7 +38,7 @@ _dash_board = None
 class _DashBoardMain(QWidget):
     """WARNING: This is a private class. do not import this."""
 
-    def __init__(self, parent, size: tuple | list = (1280, 720), do_not_move: bool = False):
+    def __init__(self, parent, size: tuple | list = (1280, 720)):
         super().__init__()
         # Setting window to no icon, frameless and transparent
         self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
@@ -47,7 +47,6 @@ class _DashBoardMain(QWidget):
         self.setFixedSize(*size)
 
         self.oldPos = QCursor().pos()
-        self.do_not_move = do_not_move
 
         self.initUI()
 
@@ -84,13 +83,10 @@ class _DashBoardMain(QWidget):
         pass
 
     def mousePressEvent(self, event):
-        if not self.do_not_move: self.oldPos = event.globalPos()
+        pass
 
     def mouseMoveEvent(self, event):
-        if not self.do_not_move:
-            delta = QPoint(event.globalPos() - self.oldPos)
-            self.move(self.x() + delta.x(), self.y() + delta.y())
-            self.oldPos = event.globalPos()
+        pass
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
