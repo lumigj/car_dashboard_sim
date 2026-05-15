@@ -2,7 +2,6 @@
 # application and how to connect the vehical state to the dashboard.
 
 from dashboard import TriggerAction
-import keyboard
 
 trigger_action = TriggerAction()  # creating dashboard trigger
 
