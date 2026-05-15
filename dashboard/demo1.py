@@ -11,40 +11,6 @@ trigger_action = TriggerAction()  # creating dashboard trigger
 trigger_action.set_dashboard_size(1366, 768)  # aspect ratio 16:9
 trigger_action.set_speedometer_range(240)
 
-def CustomkeyboardEvent(event):
-    if event.event_type == 'down':  # assume key down event is active event of vehical properties
-        if event.name == 'w':  # press accelerator
-            trigger_action.apply_accelerator()
-        if event.name == 'space':  # press break
-            trigger_action.apply_break()
-
-        # below is how to turn on or off speedometer resetter internal function
-        if event.name == 'r':
-            trigger_action.set_speedometer_resetter_state(False)
-        if event.name == 'f':
-            trigger_action.set_speedometer_resetter_state(True)
-
-        # below is the demonstration of how to set speed, battery value and charging state
-        # press 'c' to watch changes
-        if event.name == 'c':
-            trigger_action.set_speed(150)
-            trigger_action.update_battery_power(70)
-            trigger_action.charging_on()
-            #trigger_action.charging_off() # to off charging light
-
-    if event.event_type == 'up':  # assume key up event is passive event vehical properties
-        if event.name == 'w':  # release accelerator
-            trigger_action.release_accelerator()
-        if event.name == 'space':  # release break
-            trigger_action.release_break()
-
-
-        # here indicator is not called because basically indicator is a
-        # toggle switch not a push button
-
-# key hook
-key_hook = keyboard.hook(CustomkeyboardEvent)
-
 # to show dashboard note: this should be called at end of our code
 trigger_action.launch_dashboard()
 

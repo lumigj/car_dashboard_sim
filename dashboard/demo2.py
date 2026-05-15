@@ -52,11 +52,11 @@ class MainWindow(QMainWindow):
             if event.name == 'f':
                 self.trigger_action.set_speedometer_resetter_state(True)
 
-            # below is the demonstration of how to set speed, battery value and charging state
+            # below is the demonstration of how to set speed, RPM value and charging state
             # press 'c' to watch changes
             if event.name == 'c':
                 self.trigger_action.set_speed(150)
-                self.trigger_action.update_battery_power(70)
+                self.trigger_action.set_rpm(3500)
                 self.trigger_action.charging_off()
 
         if event.event_type == 'up':  # assume key up event is passive event vehical properties

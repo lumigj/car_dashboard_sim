@@ -1,20 +1,3 @@
-"""This module provide a electric vehical dashboard dimension of 16:9 aspect ratios \
-with basic features contains \n
-    2) Speedometer with auto reset to 0 kmph enable or disable option. \n
-    3) Speedometer range adjustment from 40 upto 400. default speed range is 0 to 200. \n
-    3) Battery percentage indicator. \n
-    4) Charging state indicator. \n
-    5) Accelerator state indicator. \n
-    6) Break state indicator. \n
-    7) Horn state indicator. \n
-    8) Left and right indicator. \n
-    9) You can control the above states by using several function provided in 'TriggerAction' class.\n\n
-Some cool features: \n
-    3) dashboard popup animation. \n
-    4) you can also embed this dashboard with your own application created using PyQt by using
-       'DashBoard' class.
-"""
-
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -144,36 +127,10 @@ class _DashBoardContolsDesign(QWidget):
         self.resize(self.parent_.size())
         self.setContentsMargins(0, 0, 0, 0)
 
-        self.charge_properties()
         self.break_properties()
         self.accelerator_properties()
         self.speedometer_properties()
-        self.battery_properties()
-
-
-    def charge_properties(self):
-        self.charge_default_state = 0
-        self.charge_state = 0
-        self.charge_color_lst = (QColor(67, 13, 13, 200), QGradient(QGradient.Preset.HeavyRain))
-
-    def set_charge_state(self, val):
-        self.charge_default_state = val
-        self.charge_state = val
-        self.repaint()
-
-    def charge_painting(self, painter: QPainter):
-        # setting charge font
-        charge_font = QFont("Consolas", 0, 0, True)
-        charge_font.setPixelSize(round(self.width() * 0.031))
-        charge_fm = QFontMetrics(charge_font)
-        charge_rect = charge_fm.boundingRect("CHARGING")
-        painter.setFont(charge_font)
-
-        charge_rect.moveTo(
-            self.rect().center() + QPointF(self.rect().width() * 0.328, -self.rect().height() * 0.07).toPoint())
-
-        painter.setPen(QPen(self.charge_color_lst[self.charge_state], round(self.width() * 0.0025)))
-        painter.drawText(charge_rect, Qt.AlignmentFlag.AlignCenter, "CHARGING")
+        self.rpm_properties()
 
     def break_properties(self):
         self.break_state = 0
@@ -209,26 +166,6 @@ class _DashBoardContolsDesign(QWidget):
 
     def get_speed(self):
         return round(self.speed * self.speed_angle_factor)
-
-    def set_accelerator_state(self, val):
-        self.accelerator_state = val
-        if self.speed <= 300 and not self.break_state:
-            self.speed += self.speed_angle_factor
-            self.repaint()
-
-    def accelerator_painting(self, painter: QPainter):
-        # setting accelerator font
-        accelerator_font = QFont("Consolas", 0, 0, True)
-        accelerator_font.setPixelSize(round(self.width() * 0.031))
-        accelerator_fm = QFontMetrics(accelerator_font)
-        accelerator_rect = accelerator_fm.boundingRect("ACCELERATE")
-        painter.setFont(accelerator_font)
-
-        accelerator_rect.moveTo(
-            self.rect().center() + QPointF(self.rect().width() * 0.3, self.rect().height() * 0.3).toPoint())
-
-        painter.setPen(QPen(self.accelerator_color_lst[self.accelerator_state], round(self.width() * 0.0025)))
-        painter.drawText(accelerator_rect, Qt.AlignmentFlag.AlignCenter, "ACCELERATE")
 
     def speedometer_properties(self):
         self.speedometer_bounding_rect = QRectF(self.width() * 0.173, self.height() * 0.2, self.width() * 0.4,
@@ -280,17 +217,19 @@ class _DashBoardContolsDesign(QWidget):
 
     def speedometer_painting(self, painter: QPainter):
         # inner dial design
-        conicalGradient = QConicalGradient(
-            QPointF(self.speedometer_bounding_rect.width() / 2, self.speedometer_bounding_rect.width() / 2), -59 * 16)
-        conicalGradient.setColorAt(0.2, QColorConstants.Green)
-        conicalGradient.setColorAt(0.7, QColorConstants.Yellow)
-        conicalGradient.setColorAt(0.5, QColorConstants.Red)
+        speed_arc_start_angle = -59
+        speed_arc_span_angle = 298
+        conicalGradient = QConicalGradient(self.speedometer_bounding_rect.center(), speed_arc_start_angle)
+        conicalGradient.setColorAt(0.0, QColor(66, 245, 66, 220))
+        conicalGradient.setColorAt(speed_arc_span_angle / 720, QColor(224, 210, 13, 220))
+        conicalGradient.setColorAt(speed_arc_span_angle / 360, QColor(230, 40, 40, 220))
+        conicalGradient.setColorAt(1.0, QColor(66, 245, 66, 220))
         inner_dial = self.speedometer_bounding_rect.toRect()
         inner_dial.setSize(QSizeF(self.speedometer_bounding_rect.width() * 0.975,
                                   self.speedometer_bounding_rect.width() * 0.975).toSize())
         inner_dial.moveCenter(self.speedometer_bounding_rect.center().toPoint())
         painter.setPen(QPen(conicalGradient, self.width() * 0.01))
-        painter.drawArc(inner_dial, -59 * 16, 298 * 16)
+        painter.drawArc(inner_dial, speed_arc_start_angle * 16, speed_arc_span_angle * 16)
 
         # setting number font
         number_font = QFont("Consolas", 0, 0, True)
@@ -394,68 +333,87 @@ class _DashBoardContolsDesign(QWidget):
         speed_word_rect.moveBottom(round(self.speedometer_bounding_rect.bottom() - speed_kmph_rect.height()))
         painter.drawText(speed_word_rect, Qt.AlignmentFlag.AlignCenter, "SPEED")
 
-    def battery_properties(self):
-        self.set_battery(100)
+    def rpm_properties(self):
+        self.max_rpm = 7000
+        self.rpm_arc_start_angle = -240
+        self.rpm_arc_span_angle = -180
+        self.rpm_tick_count = 7
+        self.set_rpm(0)
 
-    def set_battery(self, val):
-        self.battery = 100 - round(val / 0.555) if round(val / 0.555) <= 180 else 180
+    def set_rpm(self, val):
+        self.rpm = max(0, min(self.max_rpm, round(val)))
         self.repaint()
 
-    def get_battery(self):
-        return 56 - round(self.battery * 0.555)
+    def get_rpm(self):
+        return self.rpm
 
-    def battery_indicator_painting(self, painter):
-        battery_bounding_rect = self.speedometer_bounding_rect.toRect()
-        battery_bounding_rect.setSize(
-            QSizeF(battery_bounding_rect.width() * 0.8, battery_bounding_rect.width() * 0.8).toSize())
-        battery_bounding_rect.moveBottomLeft(
-            self.speedometer_bounding_rect.toRect().bottomRight() - QPoint(round(battery_bounding_rect.width() * 0.2),
-                                                                           0))
+    def rpm_arc_angle(self, rpm):
+        return self.rpm_arc_start_angle + rpm / self.max_rpm * self.rpm_arc_span_angle
+
+    def draw_rpm_arc(self, painter, rect, start_rpm, end_rpm):
+        start_angle = self.rpm_arc_angle(start_rpm)
+        span_angle = (end_rpm - start_rpm) / self.max_rpm * self.rpm_arc_span_angle
+        painter.drawArc(rect, round(start_angle * 16), round(span_angle * 16))
+
+    def rpm_segment_pen(self, color):
+        pen = QPen(color, self.width() * 0.01)
+        pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        return pen
+
+    def rpm_tick_rotation(self, rpm):
+        return -self.rpm_arc_angle(rpm) - 90
+
+    def tachometer_painting(self, painter):
+        rpm_bounding_rect = self.speedometer_bounding_rect.toRect()
+        rpm_bounding_rect.setSize(
+            QSizeF(rpm_bounding_rect.width() * 0.8, rpm_bounding_rect.width() * 0.8).toSize())
+        rpm_overlap = round(rpm_bounding_rect.width() * 0.31)
+        rpm_bounding_rect.moveBottomLeft(
+            self.speedometer_bounding_rect.toRect().bottomRight() - QPoint(rpm_overlap, 0))
 
         # inner dial
-        inner_dial = QRect(*battery_bounding_rect.getRect())
+        inner_dial = QRect(*rpm_bounding_rect.getRect())
         inner_dial.setSize(
-            QSizeF(battery_bounding_rect.width() * 0.975, battery_bounding_rect.width() * 0.975).toSize())
-        inner_dial.moveCenter(battery_bounding_rect.center())
-        painter.setPen(QPen(QColorConstants.Svg.red, self.width() * 0.01))
-        painter.drawArc(inner_dial, -22 * 16, -34 * 16)
-        painter.setPen(QPen(QColor(224, 210, 13, 210), self.width() * 0.01))
-        painter.drawArc(inner_dial, 14 * 16, -34 * 16)
-        painter.setPen(QPen(QColor(66, 245, 66, 190), self.width() * 0.01))
-        painter.drawArc(inner_dial, 121 * 16, -104 * 16)
+            QSizeF(rpm_bounding_rect.width() * 0.975, rpm_bounding_rect.width() * 0.975).toSize())
+        inner_dial.moveCenter(rpm_bounding_rect.center())
+        painter.setPen(self.rpm_segment_pen(QColor(66, 245, 66, 190)))
+        self.draw_rpm_arc(painter, inner_dial, 0, 2500)
+        painter.setPen(self.rpm_segment_pen(QColor(224, 210, 13, 210)))
+        self.draw_rpm_arc(painter, inner_dial, 2500, 3500)
+        painter.setPen(self.rpm_segment_pen(QColorConstants.Svg.red))
+        self.draw_rpm_arc(painter, inner_dial, 3500, self.max_rpm)
 
         # setting number font
         number_font = QFont("Consolas", 0, 0, True)
         number_font.setPixelSize(round(self.width() * 0.02))
         number_fm = QFontMetrics(number_font)
-        number_rect = number_fm.boundingRect("000")
+        number_rect = number_fm.boundingRect("0000")
         painter.setFont(number_font)
 
         # drawing main number and spike
         painter.setPen(QPen(QGradient(QGradient.Preset.FebruaryInk), self.width() * 0.005))
-        center = battery_bounding_rect.center()
-        painter.save()
-        painter.translate(center.x(), center.y())
-        painter.rotate(129)
-        painter.translate(-center.x(), -center.y())
-        for a in range(1, 12):
+        center = rpm_bounding_rect.center()
+        for a in range(self.rpm_tick_count + 1):
+            rpm_label = round(a * self.max_rpm / self.rpm_tick_count)
+            tick_rotation = self.rpm_tick_rotation(rpm_label)
+            painter.save()
             painter.translate(center.x(), center.y())
-            painter.rotate(18)
+            painter.rotate(tick_rotation)
             painter.translate(-center.x(), -center.y())
             # spike
-            spike_p1 = center + QPointF(0, battery_bounding_rect.height() * 0.495)
-            spike_p2 = center + QPointF(0, battery_bounding_rect.height() * 0.45)
+            spike_p1 = center + QPointF(0, rpm_bounding_rect.height() * 0.495)
+            spike_p2 = center + QPointF(0, rpm_bounding_rect.height() * 0.45)
             painter.drawLine(spike_p1, spike_p2)
             # number
             number_point = spike_p2.toPoint() - QPoint(0, round(self.width() * 0.02))
             painter.save()
             painter.translate(number_point.x(), number_point.y())
-            painter.rotate(a * -18 - 129)
+            painter.rotate(-tick_rotation)
             painter.translate(-number_point.x(), -number_point.y())
             number_rect.moveCenter(number_point)
-            painter.drawText(number_rect, Qt.AlignmentFlag.AlignCenter, str(100 - (a - 1) * 10))
+            painter.drawText(number_rect, Qt.AlignmentFlag.AlignCenter, str(rpm_label))
             painter.restore()
-        painter.restore()
+            painter.restore()
 
         # drawing hand
         painter.setPen(
@@ -467,7 +425,7 @@ class _DashBoardContolsDesign(QWidget):
                         center + QPoint(round(self.height() * 0.22), 0))
         painter.save()
         painter.translate(center.x(), center.y())
-        painter.rotate(-43 + self.battery)
+        painter.rotate(-self.rpm_arc_angle(self.rpm))
         painter.translate(-center.x(), -center.y())
         painter.drawPolygon(hand_polygon)
         painter.restore()
@@ -478,31 +436,29 @@ class _DashBoardContolsDesign(QWidget):
 
         # drawing outer dial
         painter.setPen(QPen(QColorConstants.Svg.lemonchiffon, self.width() * 0.005))
-        painter.drawArc(battery_bounding_rect, 303 * 16, 190 * 16)
+        self.draw_rpm_arc(painter, rpm_bounding_rect, 0, self.max_rpm)
 
         # once again drawing outer dial of speedometer to hide overlap
         painter.setPen(QPen(QGradient(QGradient.Preset.CrystalRiver), self.width() * 0.005))
         painter.drawArc(self.speedometer_bounding_rect.toRect(), -60 * 16, 300 * 16)
 
-        # drawing battery percent in word
+        # drawing rpm value in word
         painter.setPen(QPen(QGradient(QGradient.Preset.CrystalRiver), self.width() * 0.005))
-        battery_font = QFont("Consolas", 0, 0, True)
-        battery_font.setPixelSize(round(self.width() * 0.035))
-        battery_fm = QFontMetrics(battery_font)
-        # battery percent
-        battery_percent_rect = battery_fm.boundingRect("000%")
-        painter.setFont(battery_font)
-        battery_percent_rect.moveCenter(center)
-        battery_percent_rect.moveBottom(battery_bounding_rect.bottom())
-        battery_percent_rect.moveLeft(round(battery_bounding_rect.x() + battery_bounding_rect.width() * 0.23))
-        painter.drawText(battery_percent_rect, Qt.AlignmentFlag.AlignCenter, f'{self.get_battery()}%')
-        # battery
-        battery_word_rect = battery_fm.boundingRect("BATTERY")
-        painter.setFont(battery_font)
-        battery_word_rect.moveCenter(center)
-        battery_word_rect.moveBottom(battery_bounding_rect.bottom() - battery_percent_rect.height())
-        battery_word_rect.moveLeft(round(battery_bounding_rect.x() + battery_bounding_rect.width() * 0.15))
-        painter.drawText(battery_word_rect, Qt.AlignmentFlag.AlignCenter, "BATTERY")
+        rpm_font = QFont("Consolas", 0, 0, True)
+        rpm_font.setPixelSize(round(self.width() * 0.035))
+        rpm_fm = QFontMetrics(rpm_font)
+        rpm_value_rect = rpm_fm.boundingRect("0000")
+        painter.setFont(rpm_font)
+        rpm_value_rect.moveCenter(center)
+        rpm_value_rect.moveBottom(rpm_bounding_rect.bottom())
+        rpm_value_rect.moveLeft(round(rpm_bounding_rect.x() + rpm_bounding_rect.width() * 0.23))
+        painter.drawText(rpm_value_rect, Qt.AlignmentFlag.AlignCenter, str(self.get_rpm()))
+        rpm_word_rect = rpm_fm.boundingRect("RPM")
+        painter.setFont(rpm_font)
+        rpm_word_rect.moveCenter(center)
+        rpm_word_rect.moveBottom(rpm_bounding_rect.bottom() - rpm_value_rect.height())
+        rpm_word_rect.moveLeft(round(rpm_bounding_rect.x() + rpm_bounding_rect.width() * 0.27))
+        painter.drawText(rpm_word_rect, Qt.AlignmentFlag.AlignCenter, "RPM")
 
     def speedometer_animation(self, val):
         self.speed = val
@@ -521,7 +477,7 @@ class _DashBoardContolsDesign(QWidget):
         painter.drawRect(self.rect())
 
         self.speedometer_painting(painter)
-        self.battery_indicator_painting(painter)
+        self.tachometer_painting(painter)
 
 
 class _DashBoardControls(QObject):
@@ -532,8 +488,7 @@ class _DashBoardControls(QObject):
     set_speedometer_resetter_sig = pyqtSignal(int)
     break_sig = pyqtSignal(int)
 
-    set_battery_remaining_power_sig = pyqtSignal(int)
-    charging_sig = pyqtSignal(int)
+    set_rpm_signal = pyqtSignal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -556,14 +511,12 @@ class _DashBoardControls(QObject):
         self.dashboard_height = 720
         self.dashboard_width = 1280
         self.speedometer_topspeed = 200
-        self.battery_level = 100
-        self.charging_state = 0  # off
+        self.rpm = 0
 
     def startup_values_setter(self):
         self.keys_ = self.dash_board.keys_  # orginal keys
         self.dash_board.dash_board_design_widget.set_speedometer_range(self.speedometer_topspeed)
-        self.dash_board.dash_board_design_widget.set_battery(self.battery_level)
-        self.dash_board.dash_board_design_widget.set_charge_state(self.charging_state)
+        self.dash_board.dash_board_design_widget.set_rpm(self.rpm)
 
     def launch_dashboard(self):
         app = QApplication(sys.argv)
@@ -577,13 +530,11 @@ class _DashBoardControls(QObject):
 
     def all_connector(self):
         self.set_speedometer_range_sig.connect(self.dash_board.dash_board_design_widget.set_speedometer_range)
-        self.accelerator_sig.connect(self.dash_board.dash_board_design_widget.set_accelerator_state)
         self.set_current_speed_signal.connect(self.dash_board.dash_board_design_widget.set_speed)
         self.set_speedometer_resetter_sig.connect(
             self.dash_board.dash_board_design_widget.set_speedometer_resetter_state)
         self.break_sig.connect(self.dash_board.dash_board_design_widget.set_break_state)
-        self.set_battery_remaining_power_sig.connect(self.dash_board.dash_board_design_widget.set_battery)
-        self.charging_sig.connect(self.dash_board.dash_board_design_widget.set_charge_state)
+        self.set_rpm_signal.connect(self.dash_board.dash_board_design_widget.set_rpm)
 
     def set_dashboard_size(self, width, height):
         self.dashboard_height = height
@@ -593,39 +544,9 @@ class _DashBoardControls(QObject):
         self.speedometer_topspeed = top_speed
         self.set_speedometer_range_sig.emit(top_speed)
 
-    def apply_accelerator(self):
-        self.keys_[Qt.Key.Key_W] = True
-        self.accelerator_sig.emit(1)
-
-    def release_accelerator(self):
-        self.keys_[Qt.Key.Key_W] = False
-        self.accelerator_sig.emit(0)
-
-    def set_speed(self, current_speed):
-        self.set_current_speed_signal.emit(current_speed)
-
-    def set_speedometer_resetter_state(self, state):
-        self.set_speedometer_resetter_sig.emit(state)
-
-    def apply_break(self):
-        self.keys_[Qt.Key.Key_Space] = True
-        self.break_sig.emit(1)
-
-    def release_break(self):
-        self.keys_[Qt.Key.Key_Space] = False
-        self.break_sig.emit(0)
-
-    def update_battery_power(self, current_battery_power):
-        self.battery_level = current_battery_power
-        self.set_battery_remaining_power_sig.emit(current_battery_power)
-
-    def charging_on(self):
-        self.charging_state = 1
-        self.charging_sig.emit(1)
-
-    def charging_off(self):
-        self.charging_state = 0
-        self.charging_sig.emit(0)
+    def set_rpm(self, current_rpm):
+        self.rpm = current_rpm
+        self.set_rpm_signal.emit(current_rpm)
 
 
 class DashBoard(QWidget):
@@ -670,48 +591,6 @@ class TriggerAction():
         Note: given value should be between 40 to 400 and the given value \
         will internally converted to nearest multiple of 20"""
         self.__dbc.set_speedometer_range(top_speed)
-
-    def apply_accelerator(self):
-        """To activate accelerator"""
-        self.__dbc.apply_accelerator()
-
-    def release_accelerator(self):
-        """To deactivate accelerator"""
-        self.__dbc.release_accelerator()
-
-    def set_speed(self, current_speed: int):
-        """The speed should be between 0 to top speed available in speedometer. To \
-        set speedometer range use set_speedometer_range() method \n note: if you have \
-        speedometer, then call set_speedometer_resetter_state() method and pass 'True' \
-        after call this set_speed() method and pass current speed value each time when \
-        speedometer update"""
-        self.__dbc.set_speed(current_speed)
-
-    def set_speedometer_resetter_state(self, state: bool):
-        """To turn on or off speedometer internal reset function to 0 kmph after accelerator release \n note: set state True when \
-        you did not have speedometer to update the current speed else set state False when you have speedometer to update current speed"""
-        self.__dbc.set_speedometer_resetter_state(state)
-
-    def apply_break(self):
-        """To activate break"""
-        self.__dbc.apply_break()
-
-    def release_break(self):
-        """To deactivate break"""
-        self.__dbc.release_break()
-
-    def update_battery_power(self, current_battery_power: int):
-        """To set current battery power level in percentage\n note: Value should be between 0 to 100"""
-        self.__dbc.update_battery_power(current_battery_power)
-
-    def charging_on(self):
-        """To indicate charging is on"""
-        self.__dbc.charging_on()
-
-    def charging_off(self):
-        """To indicate charging is off"""
-        self.__dbc.charging_off()
-
 
 # main
 if __name__ == "__main__":
