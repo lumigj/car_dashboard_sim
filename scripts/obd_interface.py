@@ -12,7 +12,9 @@ from PyQt5.QtWidgets import (
     QApplication,
     QFrame,
     QGridLayout,
+    QHBoxLayout,
     QLabel,
+    QProgressBar,
     QVBoxLayout,
     QWidget,
 )
@@ -57,10 +59,15 @@ PRIMARY_COMMANDS = [
     "SPEED",
     "RPM",
 ]
+RIGHT_SIDE_COMMANDS = [
+    "THROTTLE_POS",
+    "ENGINE_LOAD",
+    "COOLANT_TEMP",
+]
 
 MOCK_VALUES = {
-    "RPM": "1805 revolutions_per_minute",
-    "SPEED": "40 kilometer_per_hour",
+    "RPM": "6024 revolutions_per_minute",
+    "SPEED": "196 kilometer_per_hour",
     "TIMING_ADVANCE": "2.0 degree",
     "COOLANT_TEMP": "89 degree_Celsius",
     "THROTTLE_POS": "55 percent",
@@ -108,6 +115,10 @@ def numeric_value(value):
     if text == "-":
         return 0
     return round(float(text.split(" ", 1)[0]))
+
+
+def clamped_numeric_value(value, minimum, maximum):
+    return max(minimum, min(maximum, numeric_value(value)))
 
 
 class QueryThread(QThread):
@@ -260,6 +271,94 @@ class QueryThread(QThread):
         return True
 
 
+class ProgressMetric(QFrame):
+    def __init__(self, title):
+        super().__init__()
+        self.setStyleSheet(
+            "QFrame { background-color: #000000; border: 1px solid #202020; border-radius: 8px; }"
+            "QLabel { border: 0; }"
+            "QProgressBar {"
+            "background-color: #111111;"
+            "border: 1px solid #303030;"
+            "border-radius: 5px;"
+            "height: 16px;"
+            "}"
+            "QProgressBar::chunk { background-color: #38bdf8; border-radius: 5px; }"
+        )
+        layout = QVBoxLayout()
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
+
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-size: 15px; color: #94a3b8; font-weight: bold;")
+        layout.addWidget(title_label)
+
+        self.value_label = QLabel("-")
+        self.value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.value_label.setStyleSheet("font-size: 24px; color: #e2e8f0; font-weight: bold;")
+        layout.addWidget(self.value_label)
+
+        self.bar = QProgressBar()
+        self.bar.setRange(0, 100)
+        self.bar.setTextVisible(False)
+        layout.addWidget(self.bar)
+
+        self.setLayout(layout)
+
+    def set_value(self, value):
+        self.bar.setValue(value)
+        self.value_label.setText("%d%%" % value)
+
+
+class TemperatureMetric(QFrame):
+    def __init__(self, title):
+        super().__init__()
+        self.minimum_temp = 40
+        self.maximum_temp = 120
+        self.setFixedWidth(150)
+        self.setStyleSheet(
+            "QFrame { background-color: #000000; border: 1px solid #202020; border-radius: 8px; }"
+            "QLabel { border: 0; }"
+            "QProgressBar {"
+            "background-color: #111111;"
+            "border: 1px solid #303030;"
+            "border-radius: 7px;"
+            "width: 18px;"
+            "}"
+            "QProgressBar::chunk { background-color: #ef4444; border-radius: 7px; }"
+        )
+        layout = QVBoxLayout()
+        layout.setContentsMargins(8, 10, 8, 10)
+        layout.setSpacing(6)
+
+        title_label = QLabel(title)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setStyleSheet("font-size: 15px; color: #94a3b8; font-weight: bold;")
+        layout.addWidget(title_label)
+
+        body_layout = QHBoxLayout()
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(6)
+
+        self.bar = QProgressBar()
+        self.bar.setOrientation(Qt.Orientation.Vertical)
+        self.bar.setRange(self.minimum_temp, self.maximum_temp)
+        self.bar.setTextVisible(False)
+        body_layout.addWidget(self.bar, 0, Qt.AlignmentFlag.AlignCenter)
+
+        self.value_label = QLabel("-")
+        self.value_label.setStyleSheet("font-size: 24px; color: #e2e8f0; font-weight: bold;")
+        self.value_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        body_layout.addWidget(self.value_label, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        layout.addLayout(body_layout, 1)
+        self.setLayout(layout)
+
+    def set_value(self, value):
+        self.bar.setValue(value)
+        self.value_label.setText("%d C" % value)
+
+
 class ObdWindow(QWidget):
     def __init__(self, query_thread):
         super().__init__()
@@ -281,17 +380,36 @@ class ObdWindow(QWidget):
         layout.addWidget(self.status_label)
 
         self.labels = {}
+        self.progress_metrics = {}
 
+        dashboard_row = QHBoxLayout()
+        dashboard_row.setContentsMargins(20, 0, 0, 0)
+        dashboard_row.setSpacing(16)
         self.dashboard_widget = DashBoard(self)
         self.dashboard_widget.setFixedSize(DASHBOARD_WIDTH, DASHBOARD_HEIGHT)
         self.dashboard_widget.setStyleSheet("background-color: %s; border: 0;" % BACKGROUND_COLOR)
         self.dashboard_widget.show_dashboard()
-        layout.addWidget(self.dashboard_widget, 1, Qt.AlignmentFlag.AlignCenter)
+        dashboard_row.addWidget(self.dashboard_widget, 0, Qt.AlignmentFlag.AlignRight)
+
+        right_metrics = QVBoxLayout()
+        right_metrics.setContentsMargins(0, 20, 0, 20)
+        right_metrics.setSpacing(12)
+        self.progress_metrics["THROTTLE_POS"] = ProgressMetric("THROTTLE POS")
+        self.progress_metrics["ENGINE_LOAD"] = ProgressMetric("ENGINE LOAD")
+        self.progress_metrics["COOLANT_TEMP"] = TemperatureMetric("COOLANT TEMP")
+        for name in RIGHT_SIDE_COMMANDS:
+            right_metrics.addWidget(self.progress_metrics[name])
+        dashboard_row.addLayout(right_metrics)
+        layout.addLayout(dashboard_row, 1)
 
         data_grid = QGridLayout()
         data_grid.setHorizontalSpacing(10)
         data_grid.setVerticalSpacing(10)
-        bottom_commands = [name for name in ALL_COMMANDS if name not in PRIMARY_COMMANDS]
+        bottom_commands = [
+            name
+            for name in ALL_COMMANDS
+            if name not in PRIMARY_COMMANDS and name not in RIGHT_SIDE_COMMANDS
+        ]
         for index, name in enumerate(bottom_commands):
             data_grid.addWidget(self.make_data_panel(name), index // 3, index % 3)
         layout.addLayout(data_grid, 2)
@@ -347,6 +465,15 @@ class ObdWindow(QWidget):
         self.dashboard_widget.set_values(
             numeric_value(self.latest_values["SPEED"]),
             numeric_value(self.latest_values["RPM"]),
+        )
+        self.progress_metrics["THROTTLE_POS"].set_value(
+            clamped_numeric_value(self.latest_values["THROTTLE_POS"], 0, 100)
+        )
+        self.progress_metrics["ENGINE_LOAD"].set_value(
+            clamped_numeric_value(self.latest_values["ENGINE_LOAD"], 0, 100)
+        )
+        self.progress_metrics["COOLANT_TEMP"].set_value(
+            clamped_numeric_value(self.latest_values["COOLANT_TEMP"], 40, 120)
         )
         for name in self.labels:
             self.labels[name].setText(compact_value(name, self.latest_values[name]))

@@ -130,7 +130,7 @@ class _DashBoardContolsDesign(QWidget):
 
         # setting number font
         number_font = QFont("Consolas", 0, 0, True)
-        number_font.setPixelSize(round(self.width() * 0.02))
+        number_font.setPixelSize(round(self.width() * 0.02)) #速度大小
         number_fm = QFontMetrics(number_font)
         number_rect = number_fm.boundingRect("000")
         painter.setFont(number_font)
@@ -163,7 +163,7 @@ class _DashBoardContolsDesign(QWidget):
 
         # drawing sub number and spike
         painter.setPen(QPen(QGradient(QGradient.Preset.FebruaryInk), self.width() * 0.003))
-        number_font.setPixelSize(round(self.width() * 0.015))
+        number_font.setPixelSize(round(self.width() * 0.015)) #速度大小
         painter.setFont(number_font)
         painter.save()
         painter.translate(center.x(), center.y())
@@ -215,14 +215,16 @@ class _DashBoardContolsDesign(QWidget):
         # drawing speed in word
         painter.setPen(QPen(QGradient(QGradient.Preset.Crystalline), self.width() * 0.005))
         speed_font = QFont("Consolas", 0, 0, True)
-        speed_font.setPixelSize(round(self.width() * 0.035))
+        speed_font.setPixelSize(round(self.width() * 0.055)) #速度大小
         speed_fm = QFontMetrics(speed_font)
         # speed hm/h
         speed_kmph_rect = speed_fm.boundingRect("000-km/h")
         painter.setFont(speed_font)
         speed_kmph_rect.moveCenter(center.toPoint())
         speed_kmph_rect.moveBottom(round(self.speedometer_bounding_rect.bottom()))
-        painter.drawText(speed_kmph_rect, Qt.AlignmentFlag.AlignCenter, f'{self.get_speed()} km/h')
+        painter.drawText(speed_kmph_rect, Qt.AlignmentFlag.AlignCenter, f'{self.get_speed()}'
+                                                                        # f' km/h'
+                         )
         # speed
         speed_word_rect = speed_fm.boundingRect("SPEED")
         painter.setFont(speed_font)
@@ -282,7 +284,7 @@ class _DashBoardContolsDesign(QWidget):
 
         # setting number font
         number_font = QFont("Consolas", 0, 0, True)
-        number_font.setPixelSize(round(self.width() * 0.02))
+        number_font.setPixelSize(round(self.width() * 0.02)) #转速大小
         number_fm = QFontMetrics(number_font)
         number_rect = number_fm.boundingRect("0000")
         painter.setFont(number_font)
@@ -342,7 +344,7 @@ class _DashBoardContolsDesign(QWidget):
         # drawing rpm value in word
         painter.setPen(QPen(QGradient(QGradient.Preset.CrystalRiver), self.width() * 0.005))
         rpm_font = QFont("Consolas", 0, 0, True)
-        rpm_font.setPixelSize(round(self.width() * 0.035))
+        rpm_font.setPixelSize(round(self.width() * 0.055))  #转速大小
         rpm_fm = QFontMetrics(rpm_font)
         rpm_value_rect = rpm_fm.boundingRect("0000")
         painter.setFont(rpm_font)
