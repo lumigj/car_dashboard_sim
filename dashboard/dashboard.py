@@ -17,6 +17,9 @@ _RENDER_HINTS = (
 )
 _dash_board = None
 BACKGROUND_COLOR = "#000000"
+ANIMATION_INTERVAL_MS = 30
+ANIMATION_EASING = 0.18
+ANIMATION_MIN_STEP = 0.2
 
 
 class _DashBoardMain(QWidget):
@@ -67,13 +70,15 @@ class _DashBoardContolsDesign(QWidget):
 
         self.speedometer_properties()
         self.rpm_properties()
+        self.animation_timer = QTimer(self)
+        self.animation_timer.timeout.connect(self.update_display_values)
+        self.animation_timer.start(ANIMATION_INTERVAL_MS)
 
     def set_speed(self, val):
-        self.speed = round(val / self.speed_angle_factor) if round(val / self.speed_angle_factor) <= 300 else 300
-        self.repaint()
+        self.target_speed = max(0, min(self.speed_range, round(val)))
 
     def get_speed(self):
-        return round(self.speed * self.speed_angle_factor)
+        return round(self.display_speed)
 
     def speedometer_properties(self):
         self.speedometer_bounding_rect = QRectF(self.width() * 0.02, self.height() * 0.02, self.width() * 0.6,
@@ -81,7 +86,8 @@ class _DashBoardContolsDesign(QWidget):
 
         self.speed_range = 200
         self.speed_angle_factor = self.speed_range / 300
-        self.speed = 0
+        self.target_speed = 0
+        self.display_speed = 0
         self.for_loop_count = self.speed_range // 20 + 2
         self.angle_to_rotate = 300 / (self.speed_range / 20)
         self.compromise_angle = 30 - self.angle_to_rotate
@@ -97,6 +103,8 @@ class _DashBoardContolsDesign(QWidget):
             self.speed_range = 400
 
         self.speed_angle_factor = self.speed_range / 300
+        self.target_speed = max(0, min(self.speed_range, self.target_speed))
+        self.display_speed = max(0, min(self.speed_range, self.display_speed))
         self.for_loop_count = self.speed_range // 20 + 2
         self.angle_to_rotate = 300 / (self.speed_range / 20)
         self.compromise_angle = 30 - self.angle_to_rotate
@@ -190,7 +198,7 @@ class _DashBoardContolsDesign(QWidget):
                         center + QPoint(round(self.height() * 0.28), 0))
         painter.save()
         painter.translate(center.x(), center.y())
-        painter.rotate(120 + self.speed)
+        painter.rotate(120 + self.display_speed / self.speed_angle_factor)
         painter.translate(-center.x(), -center.y())
         painter.drawPolygon(hand_polygon)
         painter.restore()
@@ -227,14 +235,14 @@ class _DashBoardContolsDesign(QWidget):
         self.rpm_arc_start_angle = -240
         self.rpm_arc_span_angle = -180
         self.rpm_tick_count = 7
-        self.set_rpm(0)
+        self.target_rpm = 0
+        self.display_rpm = 0
 
     def set_rpm(self, val):
-        self.rpm = max(0, min(self.max_rpm, round(val)))
-        self.repaint()
+        self.target_rpm = max(0, min(self.max_rpm, round(val)))
 
     def get_rpm(self):
-        return self.rpm
+        return round(self.display_rpm)
 
     def rpm_arc_angle(self, rpm):
         return self.rpm_arc_start_angle + rpm / self.max_rpm * self.rpm_arc_span_angle
@@ -314,7 +322,7 @@ class _DashBoardContolsDesign(QWidget):
                         center + QPoint(round(self.height() * 0.22), 0))
         painter.save()
         painter.translate(center.x(), center.y())
-        painter.rotate(-self.rpm_arc_angle(self.rpm))
+        painter.rotate(-self.rpm_arc_angle(self.display_rpm))
         painter.translate(-center.x(), -center.y())
         painter.drawPolygon(hand_polygon)
         painter.restore()
@@ -349,8 +357,19 @@ class _DashBoardContolsDesign(QWidget):
         rpm_word_rect.moveLeft(round(rpm_bounding_rect.x() + rpm_bounding_rect.width() * 0.27))
         painter.drawText(rpm_word_rect, Qt.AlignmentFlag.AlignCenter, "RPM")
 
-    def speedometer_animation(self, val):
-        self.speed = val
+    def approach_display_value(self, current, target):
+        diff = target - current
+        if abs(diff) <= ANIMATION_MIN_STEP:
+            return target
+        return current + diff * ANIMATION_EASING
+
+    def update_display_values(self):
+        next_speed = self.approach_display_value(self.display_speed, self.target_speed)
+        next_rpm = self.approach_display_value(self.display_rpm, self.target_rpm)
+        if next_speed == self.display_speed and next_rpm == self.display_rpm:
+            return
+        self.display_speed = next_speed
+        self.display_rpm = next_rpm
         self.repaint()
 
     def paintEvent(self, event):
