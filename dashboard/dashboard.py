@@ -1,6 +1,5 @@
 """This module provide a electric vehical dashboard dimension of 16:9 aspect ratios \
 with basic features contains \n
-    1) Header with date-time display and break light display. \n
     2) Speedometer with auto reset to 0 kmph enable or disable option. \n
     3) Speedometer range adjustment from 40 upto 400. default speed range is 0 to 200. \n
     3) Battery percentage indicator. \n
@@ -150,73 +149,12 @@ class _DashBoardContolsDesign(QWidget):
         self.resize(self.parent_.size())
         self.setContentsMargins(0, 0, 0, 0)
 
-        self.header_properties()
         self.charge_properties()
         self.break_properties()
         self.accelerator_properties()
         self.speedometer_properties()
         self.battery_properties()
 
-    def header_properties(self):
-        self.header_border_color_lst = (QColorConstants.Svg.orchid, QColorConstants.Svg.red)
-        self.header_border_color = 0
-
-        self.show_time = 0
-        self.time_update_timer = QTimer()
-        self.time_update_timer.timeout.connect(lambda: self.repaint())
-        self.time_update_timer.start(1000)
-
-        # drawing boarder
-        header_trans = QTransform()
-        header_trans.scale(self.width() * 0.012, self.height() * 0.008)
-        header_boarder = QPolygonF((QPointF(10, 10), QPointF(15, 10), QPointF(25, 25),
-                                    QPointF(55, 25), QPointF(65, 10), QPointF(70, 10),
-                                    QPointF(60, 30), QPointF(20, 30)))
-        self.scaled_header_border = header_trans.map(header_boarder)
-        scaled_header_border_bounding_rect = QRect(self.scaled_header_border.boundingRect().toRect())
-        self.scaled_header_border.translate(self.rect().center() - scaled_header_border_bounding_rect.center())
-        self.scaled_header_border.translate(0,
-                                            -self.rect().height() * 0.5 + scaled_header_border_bounding_rect.height() * 0.5)
-
-        # drawing inner
-        header_inner = QPolygonF((QPointF(15, 10), QPointF(25, 25),
-                                  QPointF(55, 25), QPointF(65, 10)))
-        self.scaled_header_inner = header_trans.map(header_inner)
-        scaled_header_inner_bounding_rect = QRect(self.scaled_header_inner.boundingRect().toRect())
-        self.scaled_header_inner.translate(self.rect().center() - scaled_header_inner_bounding_rect.center())
-        self.scaled_header_inner.translate(0,
-                                           -self.rect().height() * 0.5 + scaled_header_inner_bounding_rect.height() * 0.5)
-
-    def header_painting(self, painter: QPainter):
-        # drawing boarder
-        painter.setPen(
-            QPen(QGradient(QGradient.Preset.Blessing), round(self.width() * 0.0012), join=Qt.PenJoinStyle.MiterJoin))
-        painter.setBrush(QBrush(self.header_border_color_lst[self.header_border_color], Qt.BrushStyle.Dense4Pattern))
-        painter.drawPolygon(self.scaled_header_border)
-
-        # drawing inner
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(76, 97, 78, 100)))
-        painter.drawPolygon(self.scaled_header_inner)
-
-        painter.setPen(
-            QPen(QGradient(QGradient.Preset.Blessing), round(self.width() * 0.0012), join=Qt.PenJoinStyle.MiterJoin))
-        painter.drawPolygon(self.scaled_header_border)
-
-        # drawing time
-        now = datetime.now()
-
-        time_font = QFont("Consolas", 0, 0, True)
-        time_font.setPixelSize(round(self.width() * 0.04))
-        time_fm = QFontMetrics(time_font)
-        time_rect = time_fm.boundingRect(now.strftime("%I:%M:%S%p %d %a"))
-        painter.setFont(time_font)
-
-        scaled_header_inner_bounding_rect = self.scaled_header_inner.boundingRect().toRect()
-        time_rect.moveCenter(scaled_header_inner_bounding_rect.center())
-
-        painter.setPen(QPen(QGradient(QGradient.Preset.FreshOasis), round(self.width() * 0.0012)))
-        if self.show_time: painter.drawText(time_rect, Qt.AlignmentFlag.AlignCenter, now.strftime("%I:%M:%S%p %a %d"))
 
     def charge_properties(self):
         self.charge_default_state = 0
@@ -248,7 +186,6 @@ class _DashBoardContolsDesign(QWidget):
 
     def set_break_state(self, val):
         self.break_state = val
-        self.header_border_color = val
         self.repaint()
 
     def break_painting(self, painter: QPainter):
@@ -575,11 +512,6 @@ class _DashBoardContolsDesign(QWidget):
     def start_up_animation(self):
         self.other_visible = False
 
-        header_animation = QVariantAnimation(self)
-        header_animation.setStartValue(0)
-        header_animation.setEndValue(round(self.scaled_header_border.boundingRect().height()))
-        header_animation.valueChanged.connect(self.header_animation)
-        header_animation.setDuration(300)
 
         speedometer_popup_animation = QVariantAnimation(self)
         speedometer_popup_animation.setStartValue(round(self.height() * 1.01))
@@ -615,19 +547,9 @@ class _DashBoardContolsDesign(QWidget):
         pa_group.addAnimation(sa_speeddial_group)
 
         sa_group = QSequentialAnimationGroup(self)
-        sa_group.addAnimation(header_animation)
         sa_group.addAnimation(speedometer_popup_animation)
         sa_group.addAnimation(pa_group)
         sa_group.start(QAbstractAnimation.DeletionPolicy.DeleteWhenStopped)
-
-    def header_animation(self, pos):
-        self.scaled_header_border.translate(0,
-                                            -self.scaled_header_border.boundingRect().y() - self.scaled_header_border.boundingRect().height())
-        self.scaled_header_inner.translate(0,
-                                           -self.scaled_header_inner.boundingRect().y() - self.scaled_header_border.boundingRect().height())
-        self.scaled_header_border.translate(0, pos)
-        self.scaled_header_inner.translate(0, pos)
-        self.repaint()
 
     def speedometer_popup_animation(self, pos):
         self.speedometer_bounding_rect.moveTop(pos)
@@ -647,9 +569,9 @@ class _DashBoardContolsDesign(QWidget):
         elif loop_count == 2:
             pass
         elif loop_count == 3:
-            self.header_border_color = 1
+            pass
         elif loop_count == 4:
-            self.header_border_color = 0
+            pass
         elif loop_count == 5:
             pass
         elif loop_count == 6:
@@ -678,7 +600,6 @@ class _DashBoardContolsDesign(QWidget):
         painter.setBrush(linearGradient)
         painter.drawRect(self.rect())
 
-        self.header_painting(painter)
         if self.other_visible:
 
             self.charge_painting(painter)
