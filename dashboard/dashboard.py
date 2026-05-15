@@ -61,8 +61,7 @@ class _DashBoardMain(QWidget):
         self.stacked_widget()
         self.dash_board_design()
 
-        self.swidget.setCurrentIndex(2)
-        self.dash_board_design_widget.start_up_animation()
+        self.swidget.setCurrentIndex(0)
 
     def stacked_widget(self):
         self.swidget = QStackedWidget(self)
@@ -232,7 +231,7 @@ class _DashBoardContolsDesign(QWidget):
         painter.drawText(accelerator_rect, Qt.AlignmentFlag.AlignCenter, "ACCELERATE")
 
     def speedometer_properties(self):
-        self.speedometer_bounding_rect = QRectF(self.width() * 0.173, self.height() * 1.01, self.width() * 0.4,
+        self.speedometer_bounding_rect = QRectF(self.width() * 0.173, self.height() * 0.2, self.width() * 0.4,
                                                 self.width() * 0.4)
 
         self.enable_speedometer_resetter = True
@@ -505,83 +504,8 @@ class _DashBoardContolsDesign(QWidget):
         battery_word_rect.moveLeft(round(battery_bounding_rect.x() + battery_bounding_rect.width() * 0.15))
         painter.drawText(battery_word_rect, Qt.AlignmentFlag.AlignCenter, "BATTERY")
 
-    def start_up_animation(self):
-        self.other_visible = False
-
-
-        speedometer_popup_animation = QVariantAnimation(self)
-        speedometer_popup_animation.setStartValue(round(self.height() * 1.01))
-        speedometer_popup_animation.setEndValue(round(self.height() * 0.2))
-        speedometer_popup_animation.valueChanged.connect(self.speedometer_popup_animation)
-        speedometer_popup_animation.finished.connect(self.other_popup_animation)
-        speedometer_popup_animation.setDuration(500)
-
-        speedometer_animation1 = QVariantAnimation(self)
-        speedometer_animation1.setStartValue(0)
-        speedometer_animation1.setEndValue(300)
-        speedometer_animation1.valueChanged.connect(self.speedometer_animation)
-        speedometer_animation1.setDuration(1000)
-
-        speedometer_animation2 = QVariantAnimation(self)
-        speedometer_animation2.setStartValue(300)
-        speedometer_animation2.setEndValue(0)
-        speedometer_animation2.valueChanged.connect(self.speedometer_animation)
-        speedometer_animation2.setDuration(1000)
-
-        check_all_state_animation = QVariantAnimation(self)
-        check_all_state_animation.currentLoopChanged.connect(self.check_all_state_animation)
-        check_all_state_animation.setDuration(200)
-        check_all_state_animation.setLoopCount(10)
-
-        sa_speeddial_group = QSequentialAnimationGroup(self)
-        sa_speeddial_group.addAnimation(speedometer_animation1)
-        sa_speeddial_group.insertPause(1, 50)
-        sa_speeddial_group.addAnimation(speedometer_animation2)
-
-        pa_group = QParallelAnimationGroup(self)
-        pa_group.addAnimation(check_all_state_animation)
-        pa_group.addAnimation(sa_speeddial_group)
-
-        sa_group = QSequentialAnimationGroup(self)
-        sa_group.addAnimation(speedometer_popup_animation)
-        sa_group.addAnimation(pa_group)
-        sa_group.start(QAbstractAnimation.DeletionPolicy.DeleteWhenStopped)
-
-    def speedometer_popup_animation(self, pos):
-        self.speedometer_bounding_rect.moveTop(pos)
-        self.repaint()
-
-    def other_popup_animation(self):
-        self.other_visible = True
-        self.repaint()
-
     def speedometer_animation(self, val):
         self.speed = val
-        self.repaint()
-
-    def check_all_state_animation(self, loop_count):
-        if loop_count == 1:
-            self.show_time = 1
-        elif loop_count == 2:
-            pass
-        elif loop_count == 3:
-            pass
-        elif loop_count == 4:
-            pass
-        elif loop_count == 5:
-            pass
-        elif loop_count == 6:
-
-            self.charge_state = 1
-        elif loop_count == 7:
-            if not self.charge_default_state:
-                self.charge_state = 0
-            self.break_state = 1
-        elif loop_count == 8:
-            self.break_state = 0
-            self.accelerator_state = 1
-        elif loop_count == 9:
-            self.accelerator_state = 0
         self.repaint()
 
     def paintEvent(self, event):
@@ -596,11 +520,6 @@ class _DashBoardContolsDesign(QWidget):
         painter.setBrush(linearGradient)
         painter.drawRect(self.rect())
 
-        if self.other_visible:
-
-            self.charge_painting(painter)
-            self.break_painting(painter)
-            self.accelerator_painting(painter)
         self.speedometer_painting(painter)
         self.battery_indicator_painting(painter)
 
@@ -722,7 +641,7 @@ class DashBoard(QWidget):
         """This method is to show the dashboard in your window"""
         global _dash_board
 
-        self.dash_board_widget = _DashBoardMain(self, (self.width(), self.height()), True)
+        self.dash_board_widget = _DashBoardMain(self, (self.width(), self.height()))
         self.dash_board_widget.move(0, 0)
         self.vlayout.addWidget(self.dash_board_widget)
 
