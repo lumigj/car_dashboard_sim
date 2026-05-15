@@ -34,7 +34,7 @@ BASE_WINDOW_WIDTH = 1280
 BASE_WINDOW_HEIGHT = 720
 BASE_DASHBOARD_WIDTH = 900
 BASE_DASHBOARD_HEIGHT = 600
-DASHBOARD_HEIGHT_RATIO = 0.62
+DASHBOARD_HEIGHT_RATIO = 0.9
 DEFAULT_PORTS = [
     "/dev/ttyUSB0",
     "/dev/ttyUSB1",
@@ -43,21 +43,21 @@ DEFAULT_PORTS = [
 FAST_COMMANDS = [
     "RPM",
     "SPEED",
-    "TIMING_ADVANCE",
+    # "TIMING_ADVANCE",
 
 ]
 
 UI_REFRESH_MS = 200
 RETRY_INTERVAL_S = 10.0
 SLOW_COMMANDS = {
-    "THROTTLE_POS": 0.3,
-    "ENGINE_LOAD": 0.3,
-    "INTAKE_PRESSURE": 0.3,
-    "INTAKE_TEMP": 15.0,
-    "COOLANT_TEMP": 15.0,
-    "STATUS": 20.0,
-    "SHORT_FUEL_TRIM_1": 0.3,
-    "LONG_FUEL_TRIM_1": 36.0,
+    # "THROTTLE_POS": 0.3,
+    # "ENGINE_LOAD": 0.3,
+    # "INTAKE_PRESSURE": 0.3,
+    # "INTAKE_TEMP": 15.0,
+    # "COOLANT_TEMP": 15.0,
+    # "STATUS": 20.0,
+    # "SHORT_FUEL_TRIM_1": 0.3,
+    # "LONG_FUEL_TRIM_1": 36.0,
 }
 
 ALL_COMMANDS = FAST_COMMANDS + list(SLOW_COMMANDS)
@@ -66,9 +66,9 @@ PRIMARY_COMMANDS = [
     "RPM",
 ]
 RIGHT_SIDE_COMMANDS = [
-    "THROTTLE_POS",
-    "ENGINE_LOAD",
-    "COOLANT_TEMP",
+    # "THROTTLE_POS",
+    # "ENGINE_LOAD",
+    # "COOLANT_TEMP",
 ]
 
 MOCK_VALUES = {
@@ -444,7 +444,7 @@ class ObdWindow(QWidget):
 
         dashboard_row = QHBoxLayout()
         dashboard_row.setContentsMargins(0, 0, 0, 0)
-        dashboard_row.setSpacing(scaled(6, self.scale))
+        dashboard_row.setSpacing(0)
         self.dashboard_widget = DashBoard(self)
         self.dashboard_widget.setFixedSize(
             self.dashboard_width,
@@ -452,30 +452,8 @@ class ObdWindow(QWidget):
         )
         self.dashboard_widget.setStyleSheet("background-color: %s; border: 0;" % BACKGROUND_COLOR)
         self.dashboard_widget.show_dashboard()
-        dashboard_row.addWidget(self.dashboard_widget, 0, Qt.AlignmentFlag.AlignRight)
-
-        right_metrics = QVBoxLayout()
-        right_metrics.setContentsMargins(0, scaled(4, self.scale), 0, scaled(4, self.scale))
-        right_metrics.setSpacing(scaled(6, self.scale))
-        self.progress_metrics["THROTTLE_POS"] = ProgressMetric("THROTTLE POS", self.scale)
-        self.progress_metrics["ENGINE_LOAD"] = ProgressMetric("ENGINE LOAD", self.scale)
-        self.progress_metrics["COOLANT_TEMP"] = TemperatureMetric("COOLANT TEMP", self.scale)
-        for name in RIGHT_SIDE_COMMANDS:
-            right_metrics.addWidget(self.progress_metrics[name])
-        dashboard_row.addLayout(right_metrics)
+        dashboard_row.addWidget(self.dashboard_widget, 0, Qt.AlignmentFlag.AlignCenter)
         layout.addLayout(dashboard_row, 1)
-
-        data_grid = QGridLayout()
-        data_grid.setHorizontalSpacing(scaled(4, self.scale))
-        data_grid.setVerticalSpacing(scaled(4, self.scale))
-        bottom_commands = [
-            name
-            for name in ALL_COMMANDS
-            if name not in PRIMARY_COMMANDS and name not in RIGHT_SIDE_COMMANDS
-        ]
-        for index, name in enumerate(bottom_commands):
-            data_grid.addWidget(self.make_data_panel(name), index // 3, index % 3)
-        layout.addLayout(data_grid, 2)
 
         self.setLayout(layout)
 
@@ -538,15 +516,6 @@ class ObdWindow(QWidget):
         self.dashboard_widget.set_values(
             numeric_value(self.latest_values["SPEED"]),
             numeric_value(self.latest_values["RPM"]),
-        )
-        self.progress_metrics["THROTTLE_POS"].set_value(
-            clamped_numeric_value(self.latest_values["THROTTLE_POS"], 0, 100)
-        )
-        self.progress_metrics["ENGINE_LOAD"].set_value(
-            clamped_numeric_value(self.latest_values["ENGINE_LOAD"], 0, 100)
-        )
-        self.progress_metrics["COOLANT_TEMP"].set_value(
-            clamped_numeric_value(self.latest_values["COOLANT_TEMP"], 40, 120)
         )
         for name in self.labels:
             self.labels[name].setText(compact_value(name, self.latest_values[name]))
