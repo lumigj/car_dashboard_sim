@@ -18,7 +18,7 @@ _RENDER_HINTS = (
 _dash_board = None
 BACKGROUND_COLOR = "#000000"
 ANIMATION_INTERVAL_MS = 30
-ANIMATION_EASING = 0.18
+ANIMATION_EASING = 0.2
 ANIMATION_MIN_STEP = 0.2
 RPM_SIZE_RATIO = 0.8
 RPM_OVERLAP_RATIO = 0.317
@@ -29,8 +29,9 @@ DIAL_SAFE_PADDING_RATIO = 0.05
 class _DashBoardMain(QWidget):
     """WARNING: This is a private class. do not import this."""
 
-    def __init__(self, parent, size: tuple | list = (1280, 720)):
+    def __init__(self, parent, size: tuple | list = (1280, 720), animation_interval_ms=ANIMATION_INTERVAL_MS):
         super().__init__(parent)
+        self.animation_interval_ms = animation_interval_ms
         if parent is None:
             self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -59,16 +60,20 @@ class _DashBoardMain(QWidget):
 
 
     def dash_board_design(self):
-        self.dash_board_design_widget = _DashBoardContolsDesign(self.swidget)
+        self.dash_board_design_widget = _DashBoardContolsDesign(
+            self.swidget,
+            self.animation_interval_ms,
+        )
         self.swidget.addWidget(self.dash_board_design_widget)
 
 
 class _DashBoardContolsDesign(QWidget):
     """WARNING: This is a private class. do not import this."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, animation_interval_ms=ANIMATION_INTERVAL_MS):
         super(_DashBoardContolsDesign, self).__init__(parent)
         self.parent_ = parent
+        self.animation_interval_ms = animation_interval_ms
         self.resize(self.parent_.size())
         self.setContentsMargins(0, 0, 0, 0)
 
@@ -76,7 +81,11 @@ class _DashBoardContolsDesign(QWidget):
         self.rpm_properties()
         self.animation_timer = QTimer(self)
         self.animation_timer.timeout.connect(self.update_display_values)
-        self.animation_timer.start(ANIMATION_INTERVAL_MS)
+        self.animation_timer.start(self.animation_interval_ms)
+
+    def set_animation_interval_ms(self, interval_ms):
+        self.animation_interval_ms = interval_ms
+        self.animation_timer.start(self.animation_interval_ms)
 
     def set_speed(self, val):
         self.target_speed = max(0, min(self.speed_range, round(val)))
@@ -452,6 +461,7 @@ class DashBoard(QWidget):
 
     def __init__(self, parent=None):
         super(DashBoard, self).__init__(parent)
+        self.animation_interval_ms = ANIMATION_INTERVAL_MS
 
         self.vlayout = QVBoxLayout()
         self.vlayout.setContentsMargins(0, 0, 0, 0)
@@ -463,11 +473,20 @@ class DashBoard(QWidget):
         """This method is to show the dashboard in your window"""
         global _dash_board
 
-        self.dash_board_widget = _DashBoardMain(self, (self.width(), self.height()))
+        self.dash_board_widget = _DashBoardMain(
+            self,
+            (self.width(), self.height()),
+            self.animation_interval_ms,
+        )
         self.dash_board_widget.move(0, 0)
         self.vlayout.addWidget(self.dash_board_widget)
 
         _dash_board = self.dash_board_widget
+
+    def set_animation_interval_ms(self, interval_ms):
+        self.animation_interval_ms = interval_ms
+        if hasattr(self, "dash_board_widget"):
+            self.dash_board_widget.dash_board_design_widget.set_animation_interval_ms(interval_ms)
 
     def set_speed(self, current_speed):
         self.dash_board_widget.dash_board_design_widget.set_speed(current_speed)
