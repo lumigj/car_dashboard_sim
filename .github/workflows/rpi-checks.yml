@@ -1,0 +1,49 @@
+name: Raspberry Pi checks
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: [self-hosted, linux, ARM64]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Python environment
+        run: |
+          . .venv/bin/activate
+          python --version
+
+      - name: Syntax check
+        run: |
+          . .venv/bin/activate
+          python -m compileall -q scripts dashboard
+
+      - name: Lint critical errors
+        run: |
+          . .venv/bin/activate
+          flake8 scripts dashboard --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Run tests if present
+        run: |
+          . .venv/bin/activate
+          if [ -d tests ]; then
+            pytest
+          else
+            echo "No tests directory; skipping pytest."
+          fi
+
+      - name: Start dashboard in mock mode
+        run: |
+          . .venv/bin/activate
+          set +e
+          xvfb-run -a timeout 10s python scripts/obd_interface.py --mock
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            exit "$status"
+          fi

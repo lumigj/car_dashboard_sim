@@ -411,8 +411,6 @@ class _DashBoardControls(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        global _dash_board
-
         self.required_values()
 
         if _dash_board is not None:
